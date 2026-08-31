@@ -1,0 +1,9 @@
+[Unit]
+Description=Decode closed AIS raw logs into aisdb SQLite DB
+
+[Service]
+Type=oneshot
+User=debian
+Group=dialout
+WorkingDirectory=/home/debian/bbb
+ExecStart=/home/debian/bbb/.venv/bin/python -m ais_logger.run_ingest

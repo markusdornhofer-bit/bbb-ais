@@ -1,0 +1,39 @@
+[Unit]
+Description=AIS/GPS serial logger (Seanexx USB stick)
+Documentation=file:/home/debian/bbb/README.md
+After=multi-user.target
+
+[Service]
+Type=simple
+User=debian
+Group=dialout
+WorkingDirectory=/home/debian/bbb
+
+# Device and baud rate are known, so the port is opened directly instead of
+# being probed first (probing opens and closes it, which stops this CDC-ACM
+# device from streaming).
+Environment=AIS_DEVICE=/dev/ttyACM0
+Environment=AIS_BAUD=4800
+# Unattended operation: keep journal noise low. Raise AIS_HEARTBEAT_SECONDS
+# or set AIS_DEBUG=1 temporarily when troubleshooting.
+Environment=AIS_HEARTBEAT_SECONDS=600
+Environment=AIS_GPS_LOG_SECONDS=300
+Environment=PYTHONUNBUFFERED=1
+
+# The board has no battery-backed RTC and no NTP route at the observation
+# site, so the GPS receiver is the time source (ais_logger/gps_clock.py).
+# Stepping the clock needs CAP_SYS_TIME; granting just that one capability
+# keeps the service running as the unprivileged `debian` user instead of
+# root. Set AIS_SET_CLOCK=0 to switch the behaviour off.
+AmbientCapabilities=CAP_SYS_TIME
+CapabilityBoundingSet=CAP_SYS_TIME
+
+ExecStart=/home/debian/bbb/.venv/bin/python -m ais_logger.run_logger
+
+# Survive unplugged sticks, reboots and crashes indefinitely.
+Restart=always
+RestartSec=10
+StartLimitIntervalSec=0
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,36 @@
+[Unit]
+Description=Offline AIS web map (Sibenik)
+After=network.target
+
+[Service]
+Type=simple
+User=debian
+WorkingDirectory=/home/debian/bbb
+Environment=PYTHONUNBUFFERED=1
+# Reachable from any device on the network; set to 127.0.0.1 to restrict
+# access to the BeagleBone itself.
+Environment=AIS_WEB_HOST=0.0.0.0
+Environment=AIS_WEB_PORT=8080
+# How long a vessel stays on the map after its last message. At the
+# reception range measured here (under 1 nm) a target is long out of sight
+# after this, so the marker means "last heard from", not "is there" — the
+# age in the label says which.
+#
+# The track window is held at the same value: nothing on the map is then
+# older than 90 minutes, neither a symbol nor a line. The trade-off is that
+# a vessel close to the age limit keeps only the last stretch of its path —
+# the earlier points fall out of the track window before the symbol itself
+# disappears. Raise TRACK_MINUTES alone to keep the full approach; the
+# server drops tracks of vessels outside the display window either way, so
+# no orphan lines can appear.
+Environment=AIS_SHIP_MAX_AGE_MINUTES=90
+Environment=AIS_TRACK_MINUTES=90
+
+ExecStart=/home/debian/bbb/.venv/bin/python -m webmap.server
+
+Restart=always
+RestartSec=10
+StartLimitIntervalSec=0
+
+[Install]
+WantedBy=multi-user.target

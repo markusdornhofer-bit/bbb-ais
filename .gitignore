@@ -1,0 +1,10 @@
+data/
+.venv/
+__pycache__/
+*.pyc
+tools/webmaptest/*.json
+
+# Sicherungskopien der Messdatenbank
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

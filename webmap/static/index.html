@@ -1,0 +1,1482 @@
+<!doctype html>
+<html lang="de" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>AIS-Karte</title>
+<style>
+  :root{
+    --ui-bg:#ffffff; --ui-text:#1d2b36; --ui-muted:#5f7484; --ui-line:#d3dde5;
+    --ui-btn:#f2f6f9; --ui-btn-active:#e2eaf0; --ui-shadow:0 2px 12px rgba(20,50,70,.18);
+    --c-ship:#d32020; --c-ship-slow:#7c868e; --c-own:#1a7f37;
+  }
+  html[data-theme="dark"]{
+    --ui-bg:#141c23; --ui-text:#dfe6ec; --ui-muted:#8d9aa6; --ui-line:#2a343d;
+    --ui-btn:#1d262e; --ui-btn-active:#2a343d; --ui-shadow:0 4px 16px rgba(0,0,0,.5);
+    --c-ship:#ff5f56; --c-ship-slow:#9aa5ae; --c-own:#4ade80;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;
+    font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ui-text)}
+  /* A canvas is a replaced element: position/inset alone will NOT stretch it,
+     it keeps its intrinsic 300x150. Explicit width/height are required. */
+  #map{position:absolute;top:0;left:0;width:100%;height:100%;display:block;
+    touch-action:none;cursor:grab}
+  #map.drag{cursor:grabbing}
+
+  .panel{position:absolute;background:var(--ui-bg);border:1px solid var(--ui-line);
+    border-radius:10px;padding:10px 12px;box-shadow:var(--ui-shadow)}
+  #hud{top:10px;left:10px;min-width:200px}
+  #hud h1{margin:0 0 7px;font-size:14px;font-weight:600}
+  #hud .row{display:flex;justify-content:space-between;gap:14px;color:var(--ui-muted)}
+  #hud .row b{color:var(--ui-text);font-weight:600;font-variant-numeric:tabular-nums}
+
+  #tools{bottom:14px;right:10px;padding:5px;display:flex;flex-direction:column;gap:5px}
+  #tools button{width:40px;height:40px;font-size:19px;background:var(--ui-btn);
+    color:var(--ui-text);border:1px solid var(--ui-line);border-radius:8px;cursor:pointer}
+  #tools button:active{background:var(--ui-btn-active)}
+  #tools button.on{background:var(--ui-btn-active);border-color:var(--ui-muted)}
+
+  #player{bottom:14px;left:50%;transform:translateX(-50%);display:none;
+    width:min(560px,calc(100vw - 20px));padding:9px 12px 11px}
+  #player .top{display:flex;align-items:center;gap:10px;margin-bottom:7px}
+  #player .clock{font-variant-numeric:tabular-nums;font-weight:600;font-size:15px}
+  #player .meta{color:var(--ui-muted);font-size:12px;margin-left:auto;text-align:right}
+  #player button{background:var(--ui-btn);color:var(--ui-text);border:1px solid var(--ui-line);
+    border-radius:7px;cursor:pointer;padding:4px 9px;font-size:13px}
+  #player button.wide{min-width:34px;font-size:15px;line-height:1}
+  #player input[type=range]{width:100%;display:block;accent-color:var(--c-ship)}
+  #rp-ships{margin-top:8px;font-size:11px;line-height:1.8;color:var(--ui-muted);
+    font-variant-numeric:tabular-nums;word-break:break-word}
+  #rp-ships span{cursor:pointer}
+  #rp-ships i{color:var(--ui-line);font-style:normal;margin:0 6px;cursor:default}
+  #stats{top:50%;left:50%;transform:translate(-50%,-50%);display:none;
+    width:min(430px,calc(100vw - 24px));max-height:calc(100vh - 40px);overflow:auto}
+  #stats h1{margin:0 0 2px;font-size:15px;font-weight:600}
+  #stats .zeitraum{color:var(--ui-muted);font-size:12px;margin-bottom:9px}
+  #stats table{width:100%;border-collapse:collapse;font-size:12px;
+    font-variant-numeric:tabular-nums}
+  #stats td{padding:3px 0;border-top:1px solid var(--ui-line);vertical-align:top}
+  #stats tr:first-child td{border-top:none}
+  #stats td.t{color:var(--ui-muted);padding-right:10px;white-space:nowrap}
+  #stats td.w{text-align:right;font-weight:600;padding-right:6px;white-space:nowrap}
+  #stats td.s{color:var(--ui-text);max-width:150px;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+  #stats .fuss{color:var(--ui-muted);font-size:11px;margin-top:9px;line-height:1.5}
+  #stats button{margin-top:10px;width:100%;padding:6px;background:var(--ui-btn);
+    color:var(--ui-muted);border:1px solid var(--ui-line);border-radius:8px;cursor:pointer}
+
+  #days{top:10px;right:10px;display:none;min-width:158px}
+  #days h1{margin:0 0 6px;font-size:12px;font-weight:600;color:var(--ui-muted)}
+  #days table{border-collapse:collapse;width:100%;font-size:12px;
+    font-variant-numeric:tabular-nums}
+  #days td{padding:2px 0;cursor:pointer;color:var(--ui-text)}
+  #days td.n{text-align:right;color:var(--ui-muted);padding-left:14px}
+  #days tr:hover td{color:var(--ui-muted)}
+  #days tr.on td{color:var(--c-ship);font-weight:600}
+
+  /* Beide Panels unten links teilen sich eine Spalte, sonst laege das
+     Infofenster ueber der Liste. */
+  #bottom-left{position:absolute;bottom:14px;left:10px;display:flex;
+    flex-direction:column;gap:8px;align-items:flex-start;
+    max-width:min(330px,calc(100vw - 20px))}
+  #bottom-left .panel{position:static}
+  #info{display:none;width:100%}
+  #recent{display:none}
+  #recent h1{margin:0 0 6px;font-size:12px;font-weight:600;color:var(--ui-muted)}
+  #recent table{border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:12px}
+  #recent td{padding:1px 0}
+  #recent thead td{color:var(--ui-muted);font-weight:400;font-size:11px;
+    padding-bottom:3px;border-bottom:1px solid var(--ui-line)}
+  #recent tbody tr:first-child td{padding-top:3px}
+  #recent td.n{padding-right:14px;font-weight:600;max-width:160px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #recent td.s{padding-right:10px;text-align:right;color:var(--ui-text)}
+  #recent td.c{padding-right:10px;text-align:right;color:var(--ui-text)}
+  #recent td.a{text-align:right;color:var(--ui-muted)}
+  #info h2{margin:0 0 3px;font-size:15px}
+  #info .mmsi{color:var(--ui-muted);font-size:12px;margin-bottom:7px}
+  #info table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  #info td{padding:1px 0;color:var(--ui-muted)}
+  #info td:last-child{text-align:right;color:var(--ui-text)}
+  #info button{margin-top:9px;width:100%;padding:6px;background:var(--ui-btn);
+    color:var(--ui-muted);border:1px solid var(--ui-line);border-radius:8px;cursor:pointer}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+</style>
+</head>
+<body>
+<canvas id="map"></canvas>
+
+<div class="panel" id="hud">
+  <h1>AIS Šibenik</h1>
+  <div class="row"><span><i class="dot" style="background:var(--c-ship)"></i>Schiffe<span id="ship-window"></span></span><b id="n-ships">–</b></div>
+  <div class="row"><span><i class="dot" style="background:var(--c-own)"></i>Eigene Pos.</span><b id="own-state">–</b></div>
+  <div class="row"><span>Aktualisiert</span><b id="age">–</b></div>
+</div>
+
+<div id="bottom-left">
+<div class="panel" id="info">
+  <h2 id="i-name">–</h2>
+  <div class="mmsi" id="i-mmsi"></div>
+  <table>
+    <tr><td>Position</td><td id="i-pos"></td></tr>
+    <tr><td>Geschwindigkeit</td><td id="i-sog"></td></tr>
+    <tr><td>Kurs</td><td id="i-cog"></td></tr>
+    <tr><td>Zuletzt gehört</td><td id="i-age"></td></tr>
+  </table>
+  <button onclick="closeInfo()">Schließen</button>
+</div>
+
+<div class="panel" id="recent">
+  <h1>Zuletzt gehört</h1>
+  <table>
+    <thead><tr><td class="n">Schiff</td><td class="s">Fahrt</td>
+               <td class="c">Kurs</td><td class="a">Empfang</td></tr></thead>
+    <tbody id="recent-rows"></tbody>
+  </table>
+</div>
+</div>
+
+<div class="panel" id="stats">
+  <h1>Statistik</h1>
+  <div class="zeitraum" id="st-zeitraum">–</div>
+  <table><tbody id="st-rows"></tbody></table>
+  <div class="fuss" id="st-fuss"></div>
+  <button onclick="toggleStats()">Schließen</button>
+</div>
+
+<div class="panel" id="days">
+  <h1>Tag</h1>
+  <table><tbody id="day-rows"></tbody></table>
+</div>
+
+<div class="panel" id="player">
+  <div class="top">
+    <button class="wide" onclick="playPause()" id="pp-btn" title="Abspielen / Pause">▶</button>
+    <button onclick="cycleSpeed()" id="speed-btn" title="Geschwindigkeit">60×</button>
+    <span class="clock" id="rp-clock">–</span>
+    <span class="meta"><span id="rp-info">–</span><br><span id="rp-span"></span></span>
+  </div>
+  <input type="range" id="rp-slider" min="0" max="1000" value="0" step="1"
+         oninput="scrubTo(+this.value / 1000)">
+  <div id="rp-ships"></div>
+</div>
+
+<div class="panel" id="tools">
+  <button onclick="zoomBy(1.5)" title="Vergrößern">+</button>
+  <button onclick="zoomBy(1/1.5)" title="Verkleinern">−</button>
+  <button onclick="fitAll()" title="Alles zeigen" style="font-size:15px">⤢</button>
+  <button onclick="toggleRings()" title="Abstandsringe (1 nm)" id="rings-btn" style="font-size:17px">◎</button>
+  <button onclick="toggleReplay()" title="Aufzeichnung abspielen" id="replay-btn" style="font-size:15px">⏱</button>
+  <button onclick="toggleStats()" title="Statistik" id="stats-btn" style="font-size:16px">∑</button>
+  <button onclick="toggleTheme()" title="Tag-/Nachtansicht" id="theme-btn" style="font-size:16px">☾</button>
+</div>
+
+<script>
+"use strict";
+const cv = document.getElementById("map");
+const ctx = cv.getContext("2d");
+
+// ---- colour themes (canvas cannot read CSS variables) ----
+const THEMES = {
+  light: {
+    // Shortbread has no landmass layer: the background IS the land, and the
+    // "ocean" polygons are painted on top of it as water.
+    land:"#f8f5ec", sea:"#8bc2df", water:"#8bc2df",
+    cover:{forest:"#cfe0bd", scrub:"#dbe6c9", heath:"#dfe7cd", grass:"#dde9cb",
+           orchard:"#d9e4c2", farmland:"#e9e6cd", vineyard:"#d9e4c2",
+           beach:"#f6ecc9", sand:"#f6ecc9", bare_rock:"#e6e2da",
+           scree:"#e6e2da", residential:"#ebe7de", _default:"#e7e6d8"},
+    site:"#eae6d6", building:"#d8d1bd", street:"#ffffff", pier:"#b3ab98",
+    label:"#3d4f5c",
+    // Zwei Rampen, frisch -> alt. Der Farbton trennt weiter Fahrt von
+    // Stillstand (warm gegen neutral), die Helligkeit faellt innerhalb
+    // beider Rampen streng monoton — sonst liesse sich das Alter nicht mehr
+    // ablesen. Beim Aendern die Luminanzfolge pruefen.
+    rampMoving:["#ff8a1f", "#ef2417", "#a3143f", "#4a2340"],
+    rampSlow:  ["#c3ccd2", "#8d979e", "#5c666e", "#2b3238"],
+    own:"#12742f",
+    ownHalo:"rgba(18,116,47,.18)", ownRing:"#ffffff", track:"#4d90b4",
+    shipLabel:"#22323d", shipLabelHalo:"rgba(255,255,255,.9)",
+    ring:"rgba(20,70,100,.30)", ringMajor:"rgba(20,70,100,.55)", ringLabel:"#3d4f5c",
+    shipCog:"#0e9648",
+    coast:"#4a6b80", shallow:"rgba(255,255,255,.45)", scale:"#3d4f5c",
+    grid:"rgba(55,85,105,.16)", gridLabel:"rgba(61,79,92,.65)",
+    boundary:"rgba(126,94,146,.55)", ferry:"rgba(52,102,138,.65)",
+    bridge:"#8a8578", waterLabel:"#3d7a96", terminal:"#2f6f8f"
+  },
+  dark: {
+    // Land must stay clearly brighter than the sea, otherwise the coastline
+    // vanishes at night — hue alone is not enough to tell them apart.
+    land:"#39434e", sea:"#071c27", water:"#071c27",
+    cover:{forest:"#3a4a41", scrub:"#3d4a43", heath:"#3d4a43", grass:"#3e4c44",
+           orchard:"#3b4842", farmland:"#444a41", vineyard:"#3b4842",
+           beach:"#4d4738", sand:"#4d4738", bare_rock:"#414550",
+           scree:"#414550", residential:"#3f4550", _default:"#3c434d"},
+    site:"#414954", building:"#4e5763", street:"#7c8794", pier:"#8b96a3",
+    label:"#c3d0da",
+    rampMoving:["#ffc24a", "#ff6b52", "#d1517f", "#6b5182"],
+    rampSlow:  ["#eef3f6", "#b3bec6", "#78838c", "#454e57"],
+    own:"#4ade80",
+    ownHalo:"rgba(74,222,128,.15)", ownRing:"#071c27", track:"#5d9dc0",
+    shipLabel:"#e8eef3", shipLabelHalo:"rgba(7,28,39,.85)",
+    ring:"rgba(150,195,220,.26)", ringMajor:"rgba(150,195,220,.48)", ringLabel:"#c3d0da",
+    shipCog:"#4ee08a",
+    coast:"#7fa3b8", shallow:"rgba(127,163,184,.20)", scale:"#c3d0da",
+    grid:"rgba(150,190,215,.13)", gridLabel:"rgba(195,208,218,.55)",
+    boundary:"rgba(186,158,206,.42)", ferry:"rgba(140,185,215,.55)",
+    bridge:"#9aa5b0", waterLabel:"#7fb0c6", terminal:"#8fc4dd"
+  }
+};
+let theme = localStorage.getItem("ais-theme") || "light";
+let C = THEMES[theme];
+
+function applyTheme() {
+  C = THEMES[theme];
+  document.documentElement.setAttribute("data-theme", theme);
+  document.getElementById("theme-btn").textContent = theme === "light" ? "☾" : "☀";
+  draw();
+}
+function toggleTheme() {
+  theme = theme === "light" ? "dark" : "light";
+  localStorage.setItem("ais-theme", theme);
+  applyTheme();
+}
+
+// ---- Web Mercator: lon/lat <-> unit world square (0..1) ----
+const mx = lon => (lon + 180) / 360;
+const my = lat => {
+  const s = Math.sin(lat * Math.PI / 180);
+  return 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI);
+};
+
+let view = { cx: 0.5, cy: 0.5, scale: 1 };   // scale: world units -> css px
+let base = null, live = null, selected = null;
+let W = 0, H = 0, DPR = 1;
+
+const sx = x => (x - view.cx) * view.scale + W / 2;
+const sy = y => (y - view.cy) * view.scale + H / 2;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = cv.clientWidth || window.innerWidth;
+  H = cv.clientHeight || window.innerHeight;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  draw();
+}
+window.addEventListener("resize", resize);
+
+// ---- drawing ----
+function addPart(part) {
+  for (let i = 0; i < part.length; i++) {
+    const X = sx(mx(part[i][0])), Y = sy(my(part[i][1]));
+    i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y);
+  }
+}
+
+function tracePart(part) {
+  ctx.beginPath();
+  addPart(part);
+}
+
+/* All rings of one polygon must go into a SINGLE path so the canvas
+   nonzero-winding rule can cut the holes out. Filling ring by ring paints
+   the holes over in the polygon's own colour — and in the Shortbread schema
+   an island IS a hole in the ocean polygon, so doing that makes islands
+   disappear into the sea. The rings arrive wound in opposite directions,
+   which is exactly what the nonzero rule needs; the y-flip in my() mirrors
+   every ring alike, so their relative winding survives the projection. */
+function fillPolygon(f) {
+  ctx.beginPath();
+  for (const part of f.c) {
+    addPart(part);
+    ctx.closePath();
+  }
+  ctx.fill();
+}
+
+function drawLayer(name, style) {
+  const feats = base && base.layers && base.layers[name];
+  if (!feats || !feats.length) return;
+  const filled = !!style.fill;
+  ctx.save();
+  if (filled) ctx.fillStyle = style.fill;
+  if (style.stroke) { ctx.strokeStyle = style.stroke; ctx.lineWidth = style.width || 1; }
+  if (style.dash) ctx.setLineDash(style.dash);
+  if (style.cap) { ctx.lineCap = style.cap; ctx.lineJoin = "round"; }
+  for (const f of feats) {
+    if (filled && f.t === "pg") {
+      fillPolygon(f);
+      if (style.stroke) ctx.stroke();
+      continue;
+    }
+    for (const part of f.c) {
+      tracePart(part);
+      if (style.stroke) ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+/* Vessels making way are what the watch is about; anything at or below this
+   is moored, anchored or drifting and belongs in the background. Measured
+   28.08.2026: MMSI 238193810 sat at 0.4 kn for 150 minutes while everything
+   in transit ran 5.8-10.6 kn, so 2 kn separates the two cleanly. */
+const MOVING_KNOTS = 2;
+const isMoving = s => s.sog != null && s.sog > MOVING_KNOTS;
+
+/* AIS encodes "not available" as an out-of-range value rather than an empty
+   field: 511 for true heading, 360 for course over ground. pyais passes them
+   through unchanged, so they arrive here as ordinary numbers and, used as an
+   angle, aim a vessel wherever the sentinel happens to point — 511 mod 360
+   is 151°, which is why every Class B vessel without a compass was drawn
+   heading southeast. Measured on 29.08.2026: 400 of 733 messages carried
+   heading 511 (29 different vessels), 70 carried course 360. */
+const validAngle = a => (a != null && a >= 0 && a < 360) ? a : null;
+
+/** Best available orientation: true heading if the vessel has one, else the
+    course it is actually making good, else none. */
+function shipCourse(s) {
+  const h = validAngle(s.hdg);
+  return h != null ? h : validAngle(s.cog);
+}
+
+/** Linear blend between two #rrggbb colours. */
+function mixColour(a, b, t) {
+  const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const from = rgb(a), to = rgb(b);
+  return "#" + from.map((v, i) =>
+    Math.round(v + (to[i] - v) * t).toString(16).padStart(2, "0")).join("");
+}
+
+/* Hue carries the speed, brightness carries the age: bright the moment a
+   packet arrives, darkening as the fix ages out of the display window. At
+   under 1 nm reception a marker means "last heard from", not "is there",
+   and this is what makes that visible at a glance instead of having to read
+   every label.
+
+   Each speed class has its own multi-stop ramp (C.rampMoving, C.rampSlow)
+   rather than one colour fading to grey — the warm ramp travels orange →
+   red → carmine → aubergine, which carries far more distinguishable steps
+   than a single hue can. The two ramps stay apart in hue so the speed
+   distinction survives; within each, luminance falls strictly, so the age
+   stays readable.
+
+   The span follows the display window, so the whole ramp always maps onto
+   the ages actually on screen — including the replay player, which shows a
+   much shorter window. */
+
+/* A vessel that is both under way and heard from within the last few
+   minutes is the one thing on the chart that is certainly still there and
+   still moving. Those are drawn at double size, so the live traffic stands
+   out of the trail of stale marks a 90-minute window leaves behind.
+
+   Deliberately not applied to fresh contacts at rest: on 28.08.2026 the
+   only vessels reporting continuously were the ones lying at anchor, and
+   enlarging those would have highlighted exactly what does not matter. */
+const FRESH_SECONDS = 6 * 60;
+const FRESH_SCALE = 1.5;
+
+/* Dead reckoning. Between packets a vessel keeps moving, and at 8 kn it
+   covers a quarter of a nautical mile in two minutes — a real distance on a
+   chart this size. The hollow marker shows where it probably is now.
+
+   The velocity comes from the last track segment rather than the reported
+   course and speed: those are one instant's snapshot, the segment is what
+   the vessel actually did between two fixes. Three limits keep it honest —
+   only while the last packet is recent, only from a segment short enough to
+   describe current motion, and only for vessels actually under way (an
+   anchored boat's segment is GPS jitter, extrapolating it would invent
+   drift that is not there). */
+const PREDICT_MAX_SECONDS = 3 * 60;
+const PREDICT_MAX_GAP = 10 * 60;
+
+/* Marks along the reckoned path, measured from the vessel's position now.
+   Six minutes at 8 kn is 0.8 nm — far enough to see where a vessel is
+   heading relative to the islands and the channel, which is the question a
+   range ring alone does not answer. The three-minute mark gives the eye a
+   scale for the line instead of leaving one distant endpoint to judge.
+   Circles grow with the horizon so the nearer, more trustworthy mark reads
+   as the smaller claim. */
+const PREDICT_MARKS = [{ sec: 3 * 60, r: 2.2 }, { sec: 6 * 60, r: 3.5 }];
+const PREDICT_AHEAD_SECONDS = Math.max(...PREDICT_MARKS.map(m => m.sec));
+
+/* Motion of a vessel derived from its last track segment: the position
+   reckoned for now, the bearing, and the per-second velocity so the caller
+   can carry the path further forward. Null when the reckoning would not be
+   defensible. */
+function predictPosition(s, now) {
+  if (!isMoving(s)) return null;
+  const age = now - s.ts;
+  // age 0 is fine and wanted: a packet that just arrived still has a future
+  // worth drawing, and the reckoned "now" simply coincides with the fix.
+  // Only a timestamp from ahead of the clock is rejected.
+  if (age < 0 || age > PREDICT_MAX_SECONDS) return null;
+  const pts = live && live.tracks && live.tracks[String(s.mmsi)];
+  if (!pts || pts.length < 2) return null;
+  const b = pts[pts.length - 1], a = pts[pts.length - 2];
+  if (b.length < 3 || a.length < 3) return null;
+  const span = b[2] - a[2];
+  if (span <= 0 || span > PREDICT_MAX_GAP) return null;
+
+  const vlon = (b[0] - a[0]) / span, vlat = (b[1] - a[1]) / span;
+  // Bearing of the segment, for the marker's heading.
+  const dy = (b[1] - a[1]) * 60;
+  const dx = (b[0] - a[0]) * 60 * Math.cos(b[1] * Math.PI / 180);
+  return {
+    lon: b[0] + vlon * age, lat: b[1] + vlat * age,
+    brg: Math.atan2(dx, dy) * 180 / Math.PI, vlon, vlat, age,
+    /** Position `sec` seconds after the reckoned now-position. */
+    ahead: sec => [b[0] + vlon * (age + sec), b[1] + vlat * (age + sec)]
+  };
+}
+
+/* Second forecast, from what the vessel itself reports. Where this and the
+   segment-derived path agree, the picture is trustworthy; where they fan
+   apart, the vessel has turned or changed speed since the fix before last —
+   which is exactly the moment a forecast is worth doubting. */
+function predictReported(s, now) {
+  const cog = validAngle(s.cog);
+  if (!isMoving(s) || cog == null || s.sog == null) return null;
+  const age = now - s.ts;
+  // age 0 is fine and wanted: a packet that just arrived still has a future
+  // worth drawing, and the reckoned "now" simply coincides with the fix.
+  // Only a timestamp from ahead of the clock is rejected.
+  if (age < 0 || age > PREDICT_MAX_SECONDS) return null;
+
+  // knots -> degrees per second, longitude compressed by the latitude
+  const rad = cog * Math.PI / 180;
+  const perSec = s.sog / 3600 / 60;
+  const vlat = perSec * Math.cos(rad);
+  const vlon = perSec * Math.sin(rad) / Math.cos(s.lat * Math.PI / 180);
+  return {
+    lon: s.lon + vlon * age, lat: s.lat + vlat * age, brg: cog, vlon, vlat, age,
+    ahead: sec => [s.lon + vlon * (age + sec), s.lat + vlat * (age + sec)]
+  };
+}
+
+/* The reckoned path: last fix -> where the vessel is now -> where it will be
+   at each mark in PREDICT_MARKS. Dashed throughout, because none of it is
+   received data. The hollow hull marks "now", the open circles the forecast
+   horizons. */
+function drawReckonedPath(p, colour, X, Y, k, withHull) {
+  const PX = sx(mx(p.lon)), PY = sy(my(p.lat));
+  const [alon, alat] = p.ahead(PREDICT_AHEAD_SECONDS);
+  const AX = sx(mx(alon)), AY = sy(my(alat));
+
+  ctx.save();
+  ctx.strokeStyle = colour;
+
+  // From the fix to now: the stretch already sailed since the last packet.
+  ctx.lineWidth = 1.1;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  ctx.moveTo(X, Y);
+  ctx.lineTo(PX, PY);
+  ctx.stroke();
+
+  // From now into the forecast: thinner and longer-dashed, so the two halves
+  // of the line are not mistaken for one another.
+  ctx.lineWidth = 0.9;
+  ctx.setLineDash([7, 5]);
+  ctx.beginPath();
+  ctx.moveTo(PX, PY);
+  ctx.lineTo(AX, AY);
+  ctx.stroke();
+
+  ctx.setLineDash([]);
+  ctx.lineWidth = 1.2;
+  for (const mark of PREDICT_MARKS) {
+    const [mlon, mlat] = p.ahead(mark.sec);
+    ctx.beginPath();
+    ctx.arc(sx(mx(mlon)), sy(my(mlat)), mark.r, 0, 6.2832);
+    ctx.stroke();
+  }
+
+  if (withHull) {
+    ctx.translate(PX, PY);
+    ctx.rotate(p.brg * Math.PI / 180);
+    ctx.scale(k, k);
+    ctx.lineWidth = 1.4 / k;
+    ctx.beginPath();
+    ctx.moveTo(0, -10); ctx.lineTo(6.5, 7); ctx.lineTo(0, 4); ctx.lineTo(-6.5, 7);
+    ctx.closePath();
+    ctx.stroke();        // hollow on purpose: this is a guess, not a fix
+  }
+  ctx.restore();
+}
+
+/* Both forecasts. The segment-derived one carries the hull because it is the
+   primary estimate; the reported one is line and circles only, so two
+   agreeing forecasts do not pile two outlines on the same spot. */
+function drawPrediction(s, colour, X, Y, k, now) {
+  const gemeldet = predictReported(s, now);
+  if (gemeldet) drawReckonedPath(gemeldet, C.shipCog, X, Y, k, false);
+  const segment = predictPosition(s, now);
+  if (segment) drawReckonedPath(segment, colour, X, Y, k, true);
+}
+
+/** Position on a multi-stop ramp, t clamped to 0..1. */
+function rampColour(stops, t) {
+  const x = Math.min(Math.max(t, 0), 1) * (stops.length - 1);
+  const i = Math.min(Math.floor(x), stops.length - 2);
+  return mixColour(stops[i], stops[i + 1], x - i);
+}
+
+function shipColour(s, now) {
+  const ramp = isMoving(s) ? C.rampMoving : C.rampSlow;
+  if (now == null || s.ts == null) return ramp[0];
+  const span = ((live && live.max_age_min) || 90) * 60;
+  return rampColour(ramp, (now - s.ts) / span);
+}
+
+function drawShip(s, now) {
+  const X = sx(mx(s.lon)), Y = sy(my(s.lat));
+  if (X < -40 || Y < -40 || X > W + 40 || Y > H + 40) return;
+  const course = shipCourse(s);
+  const isSel = selected && selected.mmsi === s.mmsi;
+  const colour = shipColour(s, now);
+
+  const k = ((now - s.ts) < FRESH_SECONDS && isMoving(s)) ? FRESH_SCALE : 1;
+
+  drawPrediction(s, colour, X, Y, k, now);
+
+  ctx.save();
+  ctx.translate(X, Y);
+  ctx.fillStyle = colour;
+  ctx.strokeStyle = C.ownRing;
+  // Divided by the scale so the outline keeps its width instead of growing
+  // with the hull.
+  ctx.lineWidth = 1.2 / k;
+  if (isSel) { ctx.shadowColor = colour; ctx.shadowBlur = 14; }
+
+  if (course != null) {
+    ctx.rotate(course * Math.PI / 180);
+    ctx.scale(k, k);
+    ctx.beginPath();
+    ctx.moveTo(0, -10); ctx.lineTo(6.5, 7); ctx.lineTo(0, 4); ctx.lineTo(-6.5, 7);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  } else {
+    ctx.scale(k, k);
+    ctx.beginPath(); ctx.arc(0, 0, 5.5, 0, 6.2832); ctx.fill(); ctx.stroke();
+  }
+  ctx.restore();
+
+  if (view.scale > 60000 || isSel) {
+    // Two lines, both above the symbol: identity, then "age|speed" in the
+    // same colour the hull is drawn in, so the 2 kn rule reads off the label
+    // too. Age in whole minutes since the last packet — with contacts only
+    // minutes long, that is the number that says whether a target is still
+    // really there or just the last place it was heard from.
+    const line1 = s.name || String(s.mmsi);
+    const mins = Math.max(0, Math.floor((now - s.ts) / 60));
+    const line2 = mins + "|" + (s.sog != null ? s.sog.toFixed(1) : "–") + "kn";
+    ctx.font = "600 11px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.lineWidth = 3; ctx.strokeStyle = C.shipLabelHalo;
+    // Anchored to the top of the hull, so an enlarged symbol pushes its
+    // labels up with it instead of being written over.
+    const oben = Y - 10 * k;
+    ctx.strokeText(line1, X, oben - 15);
+    ctx.strokeText(line2, X, oben - 4);
+    ctx.fillStyle = C.shipLabel;
+    ctx.fillText(line1, X, oben - 15);
+    ctx.fillStyle = colour;
+    ctx.fillText(line2, X, oben - 4);
+  }
+}
+
+// ---- range rings ----
+const NM_METRES = 1852;
+const WORLD_METRES = 40075016.686;   // Mercator world width at the equator
+
+let ringsOn = localStorage.getItem("ais-rings") !== "0";
+
+function toggleRings() {
+  ringsOn = !ringsOn;
+  localStorage.setItem("ais-rings", ringsOn ? "1" : "0");
+  document.getElementById("rings-btn").classList.toggle("on", ringsOn);
+  draw();
+}
+
+/* Ground distance -> world units. Mercator stretches by 1/cos(lat), so a
+   circle of constant ground radius is not exactly a circle on screen — but
+   across a few nautical miles the stretch changes by far less than a pixel,
+   so a plain arc is accurate enough here. */
+const nmToWorld = (nm, lat) =>
+  nm * NM_METRES / (WORLD_METRES * Math.cos(lat * Math.PI / 180));
+
+function drawRings(own) {
+  const step = nmToWorld(1, own.lat) * view.scale;   // px per nautical mile
+  if (step < 22) return;   // zoomed out far enough that rings would be moiré
+  const X = sx(mx(own.lon)), Y = sy(my(own.lat));
+
+  // Draw only the rings that actually cross the viewport. Own position can
+  // sit far outside it — a stale fix from the previous location, or an
+  // observation point beyond the map sheet — and counting outwards from
+  // ring 1 would then spend the whole ring budget off-screen and show
+  // nothing at all.
+  const near = Math.hypot(X - Math.min(Math.max(X, 0), W),
+                          Y - Math.min(Math.max(Y, 0), H));
+  const far = Math.max(Math.hypot(X, Y), Math.hypot(W - X, Y),
+                       Math.hypot(X, H - Y), Math.hypot(W - X, H - Y));
+  const first = Math.floor(near / step) + 1;
+  const last = Math.min(Math.ceil(far / step), first + 39);
+
+  ctx.font = "600 10px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  for (let n = first; n <= last; n++) {
+    const r = n * step, major = n % 5 === 0;
+    ctx.beginPath();
+    ctx.arc(X, Y, r, 0, 6.2832);
+    ctx.strokeStyle = major ? C.ringMajor : C.ring;
+    ctx.lineWidth = major ? 1.3 : 0.8;
+    ctx.stroke();
+
+    // Label the ring where it is actually on screen: walk it clockwise from
+    // its north point and take the first spot inside the viewport. Starting
+    // north keeps the familiar look when own position is in view, and the
+    // sweep still finds a spot when the ring only crosses one corner —
+    // which is the case that matters, since a far-off own position is
+    // precisely when you want to read the distance off the map. Thinned to
+    // every 5th ring when they sit close together.
+    if (step >= 45 || major) {
+      // Step size follows the radius so successive samples stay ~120 px
+      // apart along the arc: a ring 200 nm across crosses the window over
+      // barely 3°, and a fixed coarse step would jump clean over it.
+      let at = null;
+      const stepDeg = Math.min(15, Math.max(0.25, 6875 / r));
+      for (let deg = 0; deg < 360 && !at; deg += stepDeg) {
+        const a = (deg - 90) * Math.PI / 180;
+        const ax = X + r * Math.cos(a), ay = Y + r * Math.sin(a) - 3;
+        if (ax > 26 && ax < W - 26 && ay > 12 && ay < H - 4) at = [ax, ay];
+      }
+      if (at) {
+        ctx.lineWidth = 3; ctx.strokeStyle = C.shipLabelHalo;
+        ctx.strokeText(n + " nm", at[0], at[1]);
+        ctx.fillStyle = C.ringLabel;
+        ctx.fillText(n + " nm", at[0], at[1]);
+      }
+    }
+  }
+}
+
+function drawOwn(own) {
+  const X = sx(mx(own.lon)), Y = sy(my(own.lat));
+  ctx.beginPath(); ctx.arc(X, Y, 14, 0, 6.2832);
+  ctx.fillStyle = C.ownHalo; ctx.fill();
+  ctx.beginPath(); ctx.arc(X, Y, 6, 0, 6.2832);
+  ctx.fillStyle = C.own; ctx.fill();
+  ctx.strokeStyle = C.ownRing; ctx.lineWidth = 2; ctx.stroke();
+}
+
+/* From what zoom on a place is worth naming. The larger sheet carries 848
+   hamlets against 3 towns; drawing them all at once buries the coastline in
+   text and costs a text draw per label on every frame. Towns and the county
+   seat are always named, everything smaller earns its label by zoom.
+   Reference points: the whole 35 x 36 nm sheet fits at roughly scale 520k,
+   a view with 1 nm range rings sits near 2.4M. */
+const PLACE_MIN_SCALE = {
+  state_capital: 0, city: 0, town: 0,
+  village: 800000,
+  suburb: 1200000, quarter: 1200000, neighbourhood: 1200000,
+};
+const placeMinScale = kind =>
+  kind in PLACE_MIN_SCALE ? PLACE_MIN_SCALE[kind] : 1800000;
+
+function drawLandcover() {
+  const feats = base && base.layers && base.layers.land;
+  if (!feats) return;
+  for (const f of feats) {
+    ctx.fillStyle = C.cover[f.k] || C.cover._default;
+    fillPolygon(f);   // same hole handling as drawLayer, see fillPolygon
+  }
+}
+
+function draw() {
+  // The background is the landmass; ocean polygons are painted over it.
+  ctx.fillStyle = C.land;
+  ctx.fillRect(0, 0, W, H);
+
+  drawLandcover();
+  drawLayer("sites",           { fill: C.site });
+  drawLayer("ocean",           { fill: C.sea });
+  drawLayer("water_polygons",  { fill: C.water });
+  // Die Kuestenlinie kommt als eigene Ebene vom Server, nicht aus dem Rand
+  // der Polygone: der traegt die Schnittkanten der Vektorkacheln und ergaebe
+  // ein Netz im Kachelabstand ueber dem Wasser.
+  drawLayer("coastline",       { stroke: C.shallow, width: 7, cap: "round" });
+  drawLayer("coastline",       { stroke: C.coast, width: 0.9 });
+  drawLayer("pier_polygons",   { fill: C.pier });
+  drawLayer("street_polygons", { fill: C.building });
+  drawLayer("buildings",       { fill: C.building });
+  drawLayer("streets",         { stroke: C.street, width: 1.4 });
+  drawLayer("pier_lines",      { stroke: C.pier, width: 1.5 });
+  drawLayer("water_lines",     { stroke: C.water, width: 1 });
+  drawLayer("boundaries",      { stroke: C.boundary, width: 1.2, dash: [7, 4] });
+  drawLayer("bridges",         { stroke: C.bridge, width: 2.5 });
+  // Ferry routes are the scheduled lanes through this water — dashed, the
+  // way a chart draws a track that exists by timetable rather than by land.
+  drawLayer("ferries",         { stroke: C.ferry, width: 1.3, dash: [6, 5] });
+  drawTerminals();
+
+  drawGraticule();
+  drawWaterLabels();
+
+  if (base && base.layers && base.layers.place_labels) {
+    ctx.textAlign = "center";
+    for (const f of base.layers.place_labels) {
+      if (!f.n || !f.c[0] || !f.c[0][0]) continue;
+      if (view.scale <= placeMinScale(f.k)) continue;
+      // Towns set in caps, everything smaller in ordinary case — the way a
+      // paper chart separates a place you navigate by from a hamlet that
+      // merely exists.
+      const gross = placeMinScale(f.k) === 0;
+      const text = gross ? f.n.toUpperCase() : f.n;
+      ctx.font = gross ? "700 12px system-ui, sans-serif"
+                       : "600 11px system-ui, sans-serif";
+      const p = f.c[0][0], X = sx(mx(p[0])), Y = sy(my(p[1]));
+      ctx.lineWidth = 3; ctx.strokeStyle = C.shipLabelHalo; ctx.strokeText(text, X, Y);
+      ctx.fillStyle = C.label; ctx.fillText(text, X, Y);
+    }
+  }
+
+  if (!live) return;
+
+  if (ringsOn && live.own) drawRings(live.own);
+
+  ctx.strokeStyle = C.track; ctx.lineWidth = 1.4;
+  for (const key in live.tracks) {
+    const pts = live.tracks[key];
+    if (pts.length < 2) continue;
+    tracePart(pts);
+    ctx.stroke();
+  }
+
+  for (const s of live.ships) drawShip(s, live.now);
+  if (live.own) drawOwn(live.own);
+
+  drawScaleBar();
+  drawAttribution();
+}
+
+/* The map data's credit line. OpenStreetMap requires it to be shown, and it
+   arrives from the archive as a snippet of HTML — reduced to plain text
+   here rather than trusted into the page. */
+function drawAttribution() {
+  const roh = base && base.attribution;
+  if (!roh) return;
+  const entitaeten = { copy: "©", amp: "&", lt: "<", gt: ">", quot: '"',
+                       apos: "'", nbsp: " ", "#39": "'" };
+  const text = String(roh)
+    .replace(/<[^>]*>/g, "")
+    .replace(/&(#?\w+);/g, (m, e) => (e in entitaeten ? entitaeten[e] : m))
+    .replace(/\s+/g, " ").trim();
+  if (!text) return;
+  ctx.save();
+  ctx.font = "500 10px system-ui, sans-serif";
+  ctx.textAlign = "right";
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = C.shipLabelHalo;
+  ctx.strokeText(text, W - 72, H - 10);
+  ctx.fillStyle = C.gridLabel;
+  ctx.fillText(text, W - 72, H - 10);
+  ctx.restore();
+}
+
+/* Where the ferries call. The public_transport layer is mostly bus stops
+   (247 of 309 on this sheet); only the terminals belong on a chart. */
+function drawTerminals() {
+  // Thirty markers on the whole sheet, so they may as well show at the
+  // overview zoom too — that is where "which ferries call here" is a
+  // question. Only the deepest zoom-out drops them.
+  const feats = base && base.layers && base.layers.public_transport;
+  if (!feats || view.scale < 150000) return;
+  ctx.save();
+  ctx.fillStyle = C.terminal;
+  ctx.strokeStyle = C.shipLabelHalo;
+  ctx.lineWidth = 1.6;
+  for (const f of feats) {
+    if (f.k !== "ferry_terminal" || !f.c[0] || !f.c[0][0]) continue;
+    const p = f.c[0][0], X = sx(mx(p[0])), Y = sy(my(p[1]));
+    if (X < -10 || Y < -10 || X > W + 10 || Y > H + 10) continue;
+    ctx.beginPath();
+    ctx.rect(X - 3.5, Y - 3.5, 7, 7);
+    ctx.stroke();
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* Names of bays and channels. Set apart from the place names by colour and
+   italics, the way water is lettered on a chart. */
+function drawWaterLabels() {
+  if (!base || !base.layers) return;
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.fillStyle = C.waterLabel;
+  ctx.strokeStyle = C.shipLabelHalo;
+  ctx.lineWidth = 3;
+  for (const [ebene, abScale] of [["water_polygons_labels", 300000],
+                                  ["water_lines_labels", 1200000]]) {
+    if (view.scale < abScale) continue;
+    ctx.font = ebene === "water_polygons_labels"
+      ? "italic 600 11px system-ui, sans-serif"
+      : "italic 500 10px system-ui, sans-serif";
+    for (const f of base.layers[ebene] || []) {
+      if (!f.n || !f.c[0] || !f.c[0][0]) continue;
+      const p = f.c[0][0], X = sx(mx(p[0])), Y = sy(my(p[1]));
+      if (X < 0 || Y < 0 || X > W || Y > H) continue;
+      ctx.strokeText(f.n, X, Y);
+      ctx.fillText(f.n, X, Y);
+    }
+  }
+  ctx.restore();
+}
+
+/* Latitude back out of the Mercator y — the scale bar needs to know where on
+   the globe it is, because a pixel is worth fewer metres the further north
+   the view sits. */
+const invMy = y => Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180 / Math.PI;
+
+/* Graticule. Spacings a chart would use, from a whole degree down to ten
+   seconds of arc; the finest one still at least 90 px apart is chosen, so
+   the mesh stays roughly constant on screen at every zoom. */
+const GRID_STEPS = [10, 5, 2, 1, 0.5, 1/6, 1/12, 1/30, 1/60, 1/120, 1/360];
+
+/** 43.6 -> "43°36'N" (with a decimal minute when the mesh is finer than 1'). */
+function fmtGrad(wert, achse) {
+  const hemi = achse === "lat" ? (wert < 0 ? "S" : "N") : (wert < 0 ? "W" : "O");
+  const a = Math.abs(wert);
+  const grad = Math.floor(a + 1e-9);
+  const min = (a - grad) * 60;
+  const nk = gridStep() < 1/60 ? 1 : 0;
+  return `${grad}°${min.toFixed(nk).padStart(nk ? 4 : 2, "0")}'${hemi}`;
+}
+
+function gridStep() {
+  const pxProGrad = view.scale / 360;      // mx() ist linear in der Laenge
+  for (const s of [...GRID_STEPS].reverse()) if (s * pxProGrad >= 90) return s;
+  return GRID_STEPS[0];
+}
+
+function drawGraticule() {
+  const step = gridStep();
+  const lonL = (view.cx - W / 2 / view.scale) * 360 - 180;
+  const lonR = (view.cx + W / 2 / view.scale) * 360 - 180;
+  const latO = invMy(view.cy - H / 2 / view.scale);
+  const latU = invMy(view.cy + H / 2 / view.scale);
+
+  ctx.save();
+  ctx.strokeStyle = C.grid;
+  ctx.lineWidth = 1;
+  ctx.font = "500 10px system-ui, sans-serif";
+  ctx.fillStyle = C.gridLabel;
+
+  ctx.beginPath();
+  for (let lon = Math.ceil(lonL / step) * step; lon <= lonR; lon += step) {
+    const X = sx(mx(lon));
+    ctx.moveTo(X, 0); ctx.lineTo(X, H);
+  }
+  for (let lat = Math.ceil(latU / step) * step; lat <= latO; lat += step) {
+    const Y = sy(my(lat));
+    ctx.moveTo(0, Y); ctx.lineTo(W, Y);
+  }
+  ctx.stroke();
+
+  // Beschriftung nur dort, wo keine Bedienleiste darueberliegt: das HUD sitzt
+  // oben links, unten links die Panels, unten rechts Werkzeuge und Massstab.
+  ctx.textAlign = "left";
+  for (let lat = Math.ceil(latU / step) * step; lat <= latO; lat += step) {
+    const Y = sy(my(lat));
+    if (Y < 110 || Y > H - 60) continue;
+    ctx.fillText(fmtGrad(lat, "lat"), 6, Y - 3);
+  }
+  ctx.textAlign = "center";
+  for (let lon = Math.ceil(lonL / step) * step; lon <= lonR; lon += step) {
+    const X = sx(mx(lon));
+    if (X < 360 || X > W - 210) continue;
+    ctx.fillText(fmtGrad(lon, "lon"), X, H - 8);
+  }
+  ctx.restore();
+}
+
+// Lengths a chart would actually print, rather than whatever fits exactly.
+const SCALE_STEPS = [0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100];
+
+function drawScaleBar() {
+  const lat = invMy(view.cy);
+  const pxPerNm = nmToWorld(1, lat) * view.scale;
+  if (!isFinite(pxPerNm) || pxPerNm <= 0) return;
+
+  // Longest printable length that still fits the budget; if even the
+  // shortest does not, there is nothing honest to draw.
+  const maxPx = 130;
+  let nm = null;
+  for (const step of SCALE_STEPS) if (step * pxPerNm <= maxPx) nm = step;
+  if (nm === null) return;
+
+  const len = nm * pxPerNm;
+  const x1 = W - 72, x0 = x1 - len, y = H - 26;
+
+  ctx.save();
+  ctx.lineCap = "butt";
+  ctx.strokeStyle = C.shipLabelHalo;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(x0, y); ctx.lineTo(x1, y);
+  ctx.moveTo(x0, y - 4); ctx.lineTo(x0, y + 4);
+  ctx.moveTo(x1, y - 4); ctx.lineTo(x1, y + 4);
+  ctx.stroke();
+
+  ctx.strokeStyle = C.scale;
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(x0, y); ctx.lineTo(x1, y);
+  ctx.moveTo(x0, y - 4); ctx.lineTo(x0, y + 4);
+  ctx.moveTo(x1, y - 4); ctx.lineTo(x1, y + 4);
+  ctx.stroke();
+
+  const text = (nm < 1 ? nm.toFixed(2).replace(/0$/, "").replace(".", ",")
+                       : String(nm)) + " nm";
+  ctx.font = "600 11px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = C.shipLabelHalo;
+  ctx.strokeText(text, (x0 + x1) / 2, y - 8);
+  ctx.fillStyle = C.scale;
+  ctx.fillText(text, (x0 + x1) / 2, y - 8);
+  ctx.restore();
+}
+
+// ---- interaction ----
+let dragging = false, lastX = 0, lastY = 0, moved = 0;
+cv.addEventListener("pointerdown", e => {
+  dragging = true; moved = 0; lastX = e.clientX; lastY = e.clientY;
+  cv.classList.add("drag"); cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener("pointermove", e => {
+  if (!dragging) return;
+  const dx = e.clientX - lastX, dy = e.clientY - lastY;
+  moved += Math.abs(dx) + Math.abs(dy);
+  lastX = e.clientX; lastY = e.clientY;
+  view.cx -= dx / view.scale; view.cy -= dy / view.scale;
+  draw();
+});
+cv.addEventListener("pointerup", e => {
+  dragging = false; cv.classList.remove("drag");
+  if (moved < 5) pickShip(e.clientX, e.clientY);
+});
+cv.addEventListener("wheel", e => {
+  e.preventDefault();
+  zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.25 : 1 / 1.25);
+}, { passive: false });
+
+function zoomAt(px, py, factor) {
+  const wx = view.cx + (px - W / 2) / view.scale;
+  const wy = view.cy + (py - H / 2) / view.scale;
+  view.scale = Math.max(1000, Math.min(4e6, view.scale * factor));
+  view.cx = wx - (px - W / 2) / view.scale;
+  view.cy = wy - (py - H / 2) / view.scale;
+  draw();
+}
+const zoomBy = f => zoomAt(W / 2, H / 2, f);
+
+// Keyboard: +/- zoom around the map centre, arrows pan, R toggles the rings.
+// "=" and "_" are the unshifted keys on US layouts, so both spellings of
+// each sign have to be accepted.
+window.addEventListener("keydown", e => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;   // leave browser zoom alone
+  const pan = 80;
+  switch (e.key) {
+    case "+": case "=": zoomBy(1.5); break;
+    case "-": case "_": zoomBy(1 / 1.5); break;
+    case "ArrowLeft":  view.cx -= pan / view.scale; draw(); break;
+    case "ArrowRight": view.cx += pan / view.scale; draw(); break;
+    case "ArrowUp":    view.cy -= pan / view.scale; draw(); break;
+    case "ArrowDown":  view.cy += pan / view.scale; draw(); break;
+    case "r": case "R": toggleRings(); break;
+    case " ": if (!replay) return; playPause(); break;
+    case "Escape":
+      if (document.getElementById("stats").style.display === "block") toggleStats();
+      else if (replay) exitReplay();
+      else closeInfo();
+      break;
+    default: return;
+  }
+  e.preventDefault();
+});
+
+let pinch = null;
+cv.addEventListener("touchstart", e => {
+  if (e.touches.length === 2) {
+    dragging = false;
+    pinch = Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
+                       e.touches[0].clientY - e.touches[1].clientY);
+  }
+}, { passive: true });
+cv.addEventListener("touchmove", e => {
+  if (e.touches.length === 2 && pinch) {
+    const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
+                         e.touches[0].clientY - e.touches[1].clientY);
+    zoomAt((e.touches[0].clientX + e.touches[1].clientX) / 2,
+           (e.touches[0].clientY + e.touches[1].clientY) / 2, d / pinch);
+    pinch = d;
+  }
+}, { passive: true });
+cv.addEventListener("touchend", () => { pinch = null; }, { passive: true });
+
+function pickShip(px, py) {
+  if (!live) return;
+  let best = null, bestD = 22;
+  for (const s of live.ships) {
+    const d = Math.hypot(sx(mx(s.lon)) - px, sy(my(s.lat)) - py);
+    if (d < bestD) { bestD = d; best = s; }
+  }
+  selected = best;
+  showInfo();
+  draw();
+}
+
+function fmtAge(sec) {
+  if (sec < 60) return sec + " s";
+  if (sec < 3600) return Math.floor(sec / 60) + " min";
+  return Math.floor(sec / 3600) + " h";
+}
+
+function showInfo() {
+  const box = document.getElementById("info");
+  if (!selected) { box.style.display = "none"; return; }
+  const s = selected;
+  document.getElementById("i-name").textContent = s.name || "Unbekanntes Schiff";
+  document.getElementById("i-mmsi").textContent = "MMSI " + s.mmsi;
+  document.getElementById("i-pos").textContent =
+    s.lat.toFixed(5) + "°, " + s.lon.toFixed(5) + "°";
+  document.getElementById("i-sog").textContent = s.sog != null ? s.sog.toFixed(1) + " kn" : "–";
+  document.getElementById("i-cog").textContent = fmtCog(s.cog);
+  document.getElementById("i-age").textContent = fmtAge(live.now - s.ts);
+  box.style.display = "block";
+}
+function closeInfo() { selected = null; showInfo(); draw(); }
+
+/* Opening view: centred on our own position, about this much water across.
+   fitAll() would fit the whole sheet, which was the right thing while that
+   sheet was 6 nm wide — on the 35 nm one it shrinks the area actually being
+   watched to a few pixels. The ⤢ button still gives the overview. */
+const INITIAL_VIEW_NM = 8;
+let viewPlaced = false;
+
+function placeInitialView() {
+  if (viewPlaced || !live || !live.own) return;
+  viewPlaced = true;
+  view.cx = mx(live.own.lon);
+  view.cy = my(live.own.lat);
+  view.scale = Math.max(1000, Math.min(4e6,
+    W / (nmToWorld(1, live.own.lat) * INITIAL_VIEW_NM)));
+}
+
+function fitAll() {
+  const pts = [];
+  if (base && base.bounds) {
+    pts.push([base.bounds[0], base.bounds[1]], [base.bounds[2], base.bounds[3]]);
+  }
+  if (live) {
+    for (const s of live.ships) pts.push([s.lon, s.lat]);
+    if (live.own) pts.push([live.own.lon, live.own.lat]);
+  }
+  if (!pts.length) return;
+  let x0 = 1, y0 = 1, x1 = 0, y1 = 0;
+  for (const [lon, lat] of pts) {
+    const X = mx(lon), Y = my(lat);
+    x0 = Math.min(x0, X); x1 = Math.max(x1, X);
+    y0 = Math.min(y0, Y); y1 = Math.max(y1, Y);
+  }
+  view.scale = Math.max(1000, Math.min(4e6,
+    Math.min(W / Math.max(x1 - x0, 1e-9), H / Math.max(y1 - y0, 1e-9)) * 0.9));
+  view.cx = (x0 + x1) / 2; view.cy = (y0 + y1) / 2;
+  draw();
+}
+
+// ---- replay player ----
+/* Vessels are in range for only a few minutes each and hours apart (measured
+   28.08.2026: median contact 1-5 min, nothing beyond 0.86 nm), so watching a
+   recording in real time is pointless. The player runs the archive fast:
+   60x by default, i.e. an hour of traffic per minute. */
+const SPEEDS = [10, 60, 300, 1800];
+
+/* How long a vessel stays on screen after its last message, in *recorded*
+   time. Much shorter than the live window (6 h) on purpose: at 60x, six
+   hours would leave every ship lingering for six minutes of wall clock and
+   the movement of traffic would be unreadable. */
+const REPLAY_TRAIL_MIN = 15;
+
+/* A vessel earns a place in the replay by leaving a trace worth playing:
+   this many fixes, and having been under way at some point. */
+const REPLAY_MIN_POINTS = 6;
+
+let replay = null;
+
+/** Index of the last entry with ts <= t, or -1. Entries must be sorted. */
+function lastBefore(arr, t, key) {
+  let lo = 0, hi = arr.length - 1, found = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (key(arr[mid]) <= t) { found = mid; lo = mid + 1; } else hi = mid - 1;
+  }
+  return found;
+}
+
+async function toggleReplay() {
+  if (replay) { exitReplay(); return; }
+  await openReplay("hours=24", null);
+  // Abgewartet, damit die Tagesliste zusammen mit dem Player steht und nicht
+  // eine Netzwerkrunde spaeter nachklappt.
+  await loadDays();
+}
+
+/* Loads one stretch of the archive into the player. `tag` is the calendar
+   day it represents, or null for the rolling 24-hour window. */
+async function openReplay(query, tag) {
+  let d;
+  try {
+    d = await (await fetch("/api/history?" + query)).json();
+  } catch (e) { console.error("Aufzeichnung:", e); return; }
+
+  const byShip = new Map();
+  for (const s of d.ships) {
+    if (!byShip.has(s.mmsi)) byShip.set(s.mmsi, []);
+    byShip.get(s.mmsi).push(s);
+  }
+
+  /* Only vessels that left a usable trace: at least REPLAY_MIN_POINTS fixes
+     and under way at some point. A boat lying at anchor reports for hours
+     and would otherwise fill the list and the chart with something that
+     never moves, while a single stray fix draws a symbol with no story
+     behind it. The speed test is the same isMoving() the colours use, so a
+     vessel shown here is one the chart would draw red. */
+  let ausgeblendet = 0;
+  for (const [mmsi, msgs] of [...byShip]) {
+    if (msgs.length < REPLAY_MIN_POINTS || !msgs.some(isMoving)) {
+      byShip.delete(mmsi);
+      ausgeblendet++;
+    }
+  }
+  const gezeigt = d.ships.filter(s => byShip.has(s.mmsi));
+
+  // Start at the first recorded message rather than at the window edge —
+  // playing through hours of empty water before the first contact wastes
+  // the whole point of speeding it up.
+  const start = gezeigt.length ? gezeigt[0].ts : d.from;
+  const lief = replay !== null;
+  replay = { ...d, ships: gezeigt, byShip, tag, ausgeblendet,
+             t: start, speed: replay ? replay.speed : 60,
+             playing: gezeigt.length > 0, last: performance.now() };
+
+  document.getElementById("player").style.display = "block";
+  document.getElementById("replay-btn").classList.add("on");
+  document.getElementById("speed-btn").textContent = replay.speed + "×";
+  document.getElementById("pp-btn").textContent = replay.playing ? "⏸" : "▶";
+  buildShipList();
+  renderDays();
+  renderReplay();
+  if (!lief) requestAnimationFrame(stepReplay);   // nur eine Schleife
+}
+
+// ---- statistics ----
+/* Records over everything recorded. Computed on the server, because the
+   answer spans the whole archive rather than the window the map happens to
+   be showing. */
+async function toggleStats() {
+  const box = document.getElementById("stats");
+  if (box.style.display === "block") {
+    box.style.display = "none";
+    document.getElementById("stats-btn").classList.remove("on");
+    return;
+  }
+  let d;
+  try {
+    d = await (await fetch("/api/stats")).json();
+  } catch (e) { console.error("Statistik:", e); return; }
+
+  const zeit = t => new Date(t * 1000).toLocaleString("de-DE",
+    { timeZone: "UTC", day: "2-digit", month: "2-digit",
+      hour: "2-digit", minute: "2-digit" });
+  document.getElementById("st-zeitraum").textContent = d.from
+    ? `${zeit(d.from)} – ${zeit(d.to)} UTC · ${d.ships} Schiffe, ${d.messages} Meldungen`
+    : "keine Aufzeichnung";
+  document.getElementById("st-rows").innerHTML = d.records.map(r =>
+    `<tr><td class="t">${esc(r.titel)}</td>`
+    + `<td class="w">${esc(r.wert)} ${esc(r.einheit)}</td>`
+    + `<td class="s">${esc(r.name)}</td></tr>`).join("")
+    || `<tr><td class="t">nichts aufgezeichnet</td></tr>`;
+  // Verworfene Meldungen nennen, statt sie stillschweigend zu unterschlagen.
+  document.getElementById("st-fuss").textContent = d.dropped
+    ? `${d.dropped} Meldung${d.dropped === 1 ? "" : "en"} über 100 nm entfernt `
+      + `nicht gewertet — so weit reicht UKW nicht, das sind Decodierfehler.`
+    : "";
+  box.style.display = "block";
+  document.getElementById("stats-btn").classList.add("on");
+}
+
+// ---- day picker ----
+let days = [];
+
+async function loadDays() {
+  try {
+    days = await (await fetch("/api/days")).json();
+  } catch (e) { days = []; console.error("Tage:", e); }
+  renderDays();
+}
+
+function renderDays() {
+  const box = document.getElementById("days");
+  box.style.display = replay ? "block" : "none";
+  if (!replay) return;
+  const zeile = (tag, text, zahl) =>
+    `<tr data-day="${tag}"${replay.tag === (tag || null) ? ' class="on"' : ''}>`
+    + `<td class="d">${text}</td><td class="n">${zahl}</td></tr>`;
+  document.getElementById("day-rows").innerHTML =
+    [zeile("", "letzte 24 h", "")].concat(days.map(d =>
+      zeile(d.date, d.date.slice(8) + "." + d.date.slice(5, 7) + ".", d.messages)
+    )).join("");
+}
+
+document.getElementById("days").addEventListener("click", e => {
+  const tr = e.target.closest && e.target.closest("tr[data-day]");
+  if (!tr || !replay) return;
+  const tag = tr.dataset.day;
+  openReplay(tag ? "date=" + tag : "hours=24", tag || null);
+});
+
+function exitReplay() {
+  replay = null;
+  document.getElementById("player").style.display = "none";
+  document.getElementById("days").style.display = "none";
+  document.getElementById("replay-btn").classList.remove("on");
+  loadLive();
+}
+
+function playPause() {
+  if (!replay) return;
+  // Restart from the beginning when paused at the very end.
+  if (!replay.playing && replay.t >= replay.to) replay.t = replay.from;
+  replay.playing = !replay.playing;
+  replay.last = performance.now();
+  document.getElementById("pp-btn").textContent = replay.playing ? "⏸" : "▶";
+}
+
+function cycleSpeed() {
+  if (!replay) return;
+  replay.speed = SPEEDS[(SPEEDS.indexOf(replay.speed) + 1) % SPEEDS.length];
+  document.getElementById("speed-btn").textContent = replay.speed + "×";
+}
+
+function scrubTo(frac) {
+  if (!replay) return;
+  replay.t = replay.from + frac * (replay.to - replay.from);
+  renderReplay();
+}
+
+function stepReplay(now) {
+  if (!replay) return;
+  const dt = (now - replay.last) / 1000;
+  replay.last = now;
+  if (replay.playing) {
+    replay.t += dt * replay.speed;
+    if (replay.t >= replay.to) {
+      replay.t = replay.to;
+      replay.playing = false;
+      document.getElementById("pp-btn").textContent = "▶";
+    }
+    renderReplay();
+  }
+  requestAnimationFrame(stepReplay);
+}
+
+/* Every vessel in the recording, pipe-separated under the timeline, with the
+   ones currently on screen highlighted. Rebuilt only when that set changes —
+   at 60x the frame loop runs many times per second and re-writing the list
+   every frame would be pure waste.
+
+   Ship names come out of the AIS stream, so they are escaped rather than
+   dropped into innerHTML raw. */
+const esc = s => String(s).replace(/[&<>"]/g,
+  c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* The set of vessels in a recording never changes, so the markup is built
+   once and only the styling is touched afterwards. That is what makes the
+   full colour ramp affordable here: repainting a handful of style
+   properties per frame is nothing, whereas rebuilding the markup at 60x
+   playback would not be. */
+function buildShipList() {
+  const box = document.getElementById("rp-ships");
+  const keys = [...replay.byShip.keys()];
+  box.innerHTML = keys.length
+    ? keys.map(m => `<span data-mmsi="${m}">${esc(replay.names[String(m)] || m)}</span>`)
+          .join("<i>|</i>")
+    : "keine Schiffe in der Aufzeichnung";
+  replay.listEls = new Map();
+  for (const el of box.querySelectorAll("[data-mmsi]")) {
+    replay.listEls.set(+el.dataset.mmsi, el);
+  }
+}
+
+/* Same ramp as the chart — hue from speed, brightness from age — so the list
+   reads as a legend for what is drawn. Vessels not currently on screen fall
+   back to the panel's muted colour. */
+function paintShipList(now) {
+  if (!replay.listEls) return;
+  const onScreen = new Map(live.ships.map(s => [s.mmsi, s]));
+  for (const [mmsi, el] of replay.listEls) {
+    const ship = onScreen.get(mmsi);
+    el.style.color = ship ? shipColour(ship, now) : "";
+    el.style.fontWeight = ship ? "600" : "400";
+  }
+}
+
+// Click a vessel to jump the cursor to its first message — with contacts
+// minutes long and hours apart, hunting for one by dragging is hopeless.
+document.getElementById("rp-ships").addEventListener("click", e => {
+  const mmsi = e.target.closest && e.target.closest("[data-mmsi]");
+  if (!mmsi || !replay) return;
+  const msgs = replay.byShip.get(+mmsi.dataset.mmsi);
+  if (!msgs) return;
+  replay.t = msgs[0].ts;
+  replay.playing = false;
+  document.getElementById("pp-btn").textContent = "▶";
+  renderReplay();
+});
+
+/* Builds exactly the shape /api/live delivers, so the whole drawing path —
+   ships, tracks, own position, range rings — is reused unchanged. */
+function renderReplay() {
+  const t = replay.t, trail = REPLAY_TRAIL_MIN * 60;
+  const ships = [], tracks = {};
+  for (const [mmsi, msgs] of replay.byShip) {
+    const i = lastBefore(msgs, t, m => m.ts);
+    if (i < 0 || t - msgs[i].ts > trail) continue;
+    ships.push({ ...msgs[i], name: replay.names[String(mmsi)] || null });
+    const pts = [];
+    for (let k = 0; k <= i; k++) {
+      // Same [lon, lat, ts] shape as /api/live, so dead reckoning works
+      // during playback too.
+      if (msgs[k].ts >= t - trail) pts.push([msgs[k].lon, msgs[k].lat, msgs[k].ts]);
+    }
+    if (pts.length > 1) tracks[String(mmsi)] = pts;
+  }
+
+  let own = null;
+  const j = lastBefore(replay.own, t, p => p[0]);
+  if (j >= 0) own = { ts: replay.own[j][0], lat: replay.own[j][1],
+                      lon: replay.own[j][2], sog: null, cog: null };
+
+  live = { own, ships, tracks, now: t, max_age_min: REPLAY_TRAIL_MIN };
+  if (selected) selected = ships.find(s => s.mmsi === selected.mmsi) || null;
+
+  const d = new Date(t * 1000);
+  document.getElementById("rp-clock").textContent = replay.ships.length
+    ? d.toLocaleString("de-DE", { timeZone: "UTC", day: "2-digit", month: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " UTC"
+    : (replay.ausgeblendet ? "nichts in Fahrt" : "keine Aufzeichnung");
+  document.getElementById("rp-info").textContent =
+    `${replay.byShip.size} Schiffe, ${replay.ships.length} Meldungen`;
+  // Sagen, dass gefiltert wurde — sonst wirkt eine kurze Liste wie ein
+  // schlechter Empfangstag statt wie eine bewusste Auswahl.
+  document.getElementById("rp-span").textContent =
+    `${Math.round((replay.to - replay.from) / 3600)} h Aufzeichnung`
+    + (replay.ausgeblendet ? ` · ${replay.ausgeblendet} ausgeblendet` : "");
+  const slider = document.getElementById("rp-slider");
+  if (document.activeElement !== slider) {
+    slider.value = Math.round((t - replay.from) /
+      Math.max(replay.to - replay.from, 1) * 1000);
+  }
+  paintShipList(t);
+
+  updateHud();
+  showInfo();
+  draw();
+}
+
+// ---- data ----
+async function loadBase() {
+  try {
+    base = await (await fetch("/api/map")).json();
+    // Nur als Notbehelf: sobald die erste eigene Position da ist, ruecken
+    // wir auf sie. Ohne GPS-Fix bleibt es bei der Uebersicht.
+    if (!viewPlaced) fitAll();
+  } catch (e) { console.error("Basiskarte:", e); }
+}
+
+let lastUpdate = 0;
+
+// Shared by the live poll and the replay player, which both produce the
+// same `live` shape.
+function updateHud() {
+  if (!live) return;
+  document.getElementById("n-ships").textContent = live.ships.length;
+  // Say which window the count covers — "0 vessels" on its own is
+  // ambiguous between "nothing in range" and "window too short".
+  const w = live.max_age_min;
+  document.getElementById("ship-window").textContent =
+    !w ? "" : w % 60 === 0 && w >= 120 ? ` (${w / 60} h)` : ` (${w} min)`;
+  document.getElementById("own-state").textContent = live.own
+    ? live.own.lat.toFixed(4) + ", " + live.own.lon.toFixed(4) : "kein Fix";
+  updateRecent();
+}
+
+/* The most recently heard vessels, bottom left. With a 90-minute window the
+   chart carries a lot of old marks; this answers "what came through just
+   now" without hunting for the brightest symbol. Names are tinted with the
+   same ramp as the chart so the two read together. */
+const RECENT_COUNT = 10;
+
+/** Course in the maritime three-digit form, 043° rather than 43°. */
+const fmtCog = c => {
+  const v = validAngle(c);
+  return v == null ? "–" : String(Math.round(v) % 360).padStart(3, "0") + "°";
+};
+
+function updateRecent() {
+  const box = document.getElementById("recent");
+  const rows = [...live.ships].sort((a, b) => b.ts - a.ts).slice(0, RECENT_COUNT);
+  box.style.display = rows.length ? "block" : "none";
+  document.getElementById("recent-rows").innerHTML = rows.map(s => {
+    const min = Math.max(0, Math.floor((live.now - s.ts) / 60));
+    const sog = s.sog != null ? s.sog.toFixed(1) : "–";
+    return `<tr><td class="n" style="color:${shipColour(s, live.now)}">`
+         + `${esc(s.name || s.mmsi)}</td>`
+         + `<td class="s">${sog} kn</td>`
+         + `<td class="c">${fmtCog(s.cog)}</td>`
+         + `<td class="a">${min} min</td></tr>`;
+  }).join("");
+}
+
+async function loadLive() {
+  if (replay) return;   // the player owns `live` while it is open
+  try {
+    live = await (await fetch("/api/live")).json();
+    lastUpdate = Date.now();
+    placeInitialView();
+    updateHud();
+    if (selected) {
+      selected = live.ships.find(s => s.mmsi === selected.mmsi) || null;
+      showInfo();
+    }
+    draw();
+  } catch (e) { console.error("Live-Daten:", e); }
+}
+
+setInterval(() => {
+  document.getElementById("age").textContent = replay ? "Wiedergabe"
+    : lastUpdate ? "vor " + fmtAge(Math.round((Date.now() - lastUpdate) / 1000)) : "–";
+}, 1000);
+
+document.getElementById("rings-btn").classList.toggle("on", ringsOn);
+applyTheme();
+resize();
+loadBase().then(loadLive);
+setInterval(loadLive, 5000);
+</script>
+</body>
+</html>
