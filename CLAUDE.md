@@ -190,7 +190,7 @@ Küstenlinie damit unsichtbar.
   Kartenmaterial deckt 15,809–15,945° O / 43,551–43,630° N ab – das ist die
   **Seezufahrt mit den Inseln**, nicht die Stadt selbst (die liegt bei
   43,735° N, also nördlich außerhalb).
-- **Erster echter AIS-Empfang bestätigt (26.08.2026, 09:42 UTC):** zwei
+- **Erster echter AIS-Empfang bestätigt (28.08.2026, 11:00:35 UTC):** zwei
   Typ-1-Positionsmeldungen von MMSI 238537940 (MID 238 = Kroatien) bei
   43,5839° N / 15,9074° E, also innerhalb des Kartenausschnitts. Die beiden
   20 s auseinanderliegenden Positionen ergeben per Koppelrechnung 7,71 kn /
@@ -231,14 +231,29 @@ Küstenlinie damit unsichtbar.
   sie enthielten ohnehin nur Rauschen. Die Datenbank enthält seither
   ausschließlich Daten vom 28.08.2026 aus Primošten.
 
-  Sicherung mit dem vollständigen alten Stand (inkl. Steiermark-Zeilen und
-  unkorrigierten Zeitstempeln): `data/aisdb_vor_uhrkorrektur.sqlite`.
-- **Roharchive vor dem 28.08.2026 liegen in `data/archiv_vor_2026-08-28/`**,
-  nicht mehr in `data/raw/`. Sie sind unverändert, tragen also weiterhin die
-  falschen Tagblock-Zeiten. Bewusst nicht umgeschrieben: sie sind der
-  Urbeleg, und ein geschätzter Versatz darin würde eine spätere, genauere
-  Korrektur unmöglich machen. Aus `raw/` heraus sind sie, damit
-  `run_ingest` die falschen Zeiten nicht zurück in die Datenbank holt.
+  Die Sicherung `data/aisdb_vor_uhrkorrektur.sqlite` mit dem alten Stand
+  wurde am 01.09.2026 entfernt: sie enthielt nur acht Meldungen, alle mit
+  dem falschen Datum 26.08., und alle acht stehen roh in
+  `data/archiv_2026-08-28/ais_20260828_1000.nm4`.
+- **Der Ordner `data/archiv_vor_2026-08-28/` wurde am 01.09.2026 entfernt.**
+  Er enthielt 8,1 MB, davon nach echter GPS-Zeit nur 1,5 h verwertbares
+  Material: 3139 GPS-Fixes vom 26.08. aus der Steiermark, ortsfest, ohne
+  eine einzige Schiffsmeldung – 400 km vom Meer entfernt. Dazu 2361
+  RMC-Sätze vom 25.08., alle mit Status `V`, also **ohne Fix**: weder
+  Position noch echte Zeit daraus belegbar.
+
+  **Die Dateinamen dort logen um 49,3 h.** Ohne RTC lief die Systemuhr nach
+  jedem Neustart vom alten Stand weiter, deshalb trugen zwei Dateien den
+  26.08., enthielten aber 28.08.-Material aus Primošten. Genau dieser
+  Fallstrick war der Grund zu löschen statt zu dokumentieren: wer das
+  Archiv nach Dateinamen auswertet, datiert zwangsläufig falsch.
+
+  Der echte 28.08.-Teil ist erhalten und liegt jetzt unter korrektem Namen
+  in `data/archiv_2026-08-28/` als `ais_20260828_1000.nm4` (10:53–11:18 UTC,
+  aus der Grenzdatei ab Zeile 12964 herausgeschnitten) und
+  `ais_20260828_1100.nm4` (11:18–12:09 UTC). Alle acht echten
+  Schiffsmeldungen sind darin, der erste Empfang um 11:00:35 UTC
+  eingeschlossen.
 - **Weiterhin ungetestet:** Kartendarstellung mit echten Schiffen und die
   Abstandsringe unter realen Bedingungen – beides ist bisher nur mit
   simulierten Daten geprüft, nie mit dem Auge auf der fertigen Karte.
