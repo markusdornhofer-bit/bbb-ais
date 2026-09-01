@@ -416,6 +416,62 @@ Geprüft wird damit die **Mechanik** – Geometrie, Reihenfolge, Schwellen,
 Formate –, nicht das Bild. Wie die Karte aussieht, sieht weiterhin nur ein
 Mensch.
 
+## Wiedergabe auf eine virtuelle Schnittstelle
+
+`tools/replay_serial.py` spielt die aufgezeichneten Archive in Echtzeit auf
+eine virtuelle serielle Schnittstelle. Damit lässt sich die ganze Kette –
+Leser, Decoder, Datenbank, Karte – ohne angeschlossenen Empfänger betreiben.
+Der Startzeitpunkt ist das Argument:
+
+```bash
+python3 tools/replay_serial.py --list                    # was liegt vor?
+python3 tools/replay_serial.py 2026-08-29T06:00 --link /tmp/ttyAIS
+
+# in einer zweiten Sitzung, gegen eine Wegwerf-Datenbank:
+AIS_SET_CLOCK=0 AIS_DATA_DIR=/tmp/test AIS_DEVICE=/tmp/ttyAIS \
+    python3 -m ais_logger.run_logger
+```
+
+Was am Port ankommt, ist vom echten Stick nicht zu unterscheiden: den
+Tag-Block der Archive setzt `reader.py`, nicht die Hardware, deshalb wird er
+wieder entfernt und der nackte NMEA-Satz mit CRLF geschrieben. Die Schnitt-
+stelle ist ein Pty und hat keine echte Baudrate – das Tempo kommt aus den
+Zeitstempeln.
+
+**`AIS_SET_CLOCK=0` ist auf dem BeagleBone nicht optional.** Der Strom trägt
+die GPS-Zeit der Aufzeichnung, und `gps_clock.py` glaubt ihm: ein Logger an
+diesem Port würde die Systemuhr um Tage zurückstellen.
+
+| Schalter | Wirkung |
+|---|---|
+| `--tempo N` | N-fache Geschwindigkeit, Vorgabe 1.0 |
+| `--max-gap S` | Leerlauf über S Sekunden zusammenziehen, Vorgabe 60; `keep` gibt sie voll wieder |
+| `--until T` | Endpunkt in der Aufzeichnung |
+| `--link PFAD` | Symlink auf das Pty, damit der Port einen festen Namen hat |
+| `--local` | Zeitangaben als Ortszeit lesen statt UTC |
+| `--list` | zeigt Abdeckung, Lücken und Uhrversätze |
+
+Die Vorgabe für `--max-gap` hat einen konkreten Grund: die Aufzeichnung hat
+drei nächtliche Lücken von 8–9 Stunden, in denen die Wiedergabe sonst
+einfach stillstünde.
+
+Zwei Eigenheiten sind absichtlich so:
+
+- **Der Leser muss mitkommen.** Auf dem BeagleBone sind Echtzeit rund 10
+  Sätze/s und verlustfrei; bei `--tempo 20` waren es 154/s und über die
+  Hälfte ging verloren. Ein Pty verhält sich hier wie eine echte Leitung –
+  hört niemand zu, sind die Bytes weg. Verluste werden gezählt und am Ende
+  gemeldet, nie verschwiegen.
+- **Die Zeitstempel in der Datenbank sind die Wanduhr**, nicht die
+  Aufnahmezeit – `reader.py` stempelt mit `time.time()`, genau wie am
+  echten Stick. Eine Wiedergabe von vorgestern früh erscheint also als
+  Verkehr von jetzt, was die Live-Karte gerade will. Wenn die
+  Originalzeiten zählen, führt der Weg über die Archive oder den Web-Player.
+
+Nachgeprüft: 90 Sekunden aus dem dichtesten Fenster (01.09., 06:39:30 UTC)
+durch den unveränderten `run_logger` ergaben 9 von 9 Meldungen und 4 von 4
+Schiffen, ohne Verlust und ohne Zusatz gegenüber dem Original.
+
 ## Daten abfragen
 
 ```python
