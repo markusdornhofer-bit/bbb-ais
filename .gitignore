@@ -1,10 +1,10 @@
-data/
+# Erzeugte und plattformspezifische Dateien. Alles andere, auch die
+# Messdaten unter data/, gehoert bewusst ins Repository.
 .venv/
 __pycache__/
 *.pyc
-tools/webmaptest/*.json
 
-# Sicherungskopien der Messdatenbank
-*.sqlite
-*.sqlite-shm
+# Fluechtige SQLite-Begleitdateien; die Datenbank selbst liegt als
+# konsistenter Schnappschuss (VACUUM INTO) im Repository.
 *.sqlite-wal
+*.sqlite-shm
