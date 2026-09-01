@@ -108,7 +108,7 @@
 <canvas id="map"></canvas>
 
 <div class="panel" id="hud">
-  <h1>AIS Šibenik</h1>
+  <h1>AIS Primošten</h1>
   <div class="row"><span><i class="dot" style="background:var(--c-ship)"></i>Schiffe<span id="ship-window"></span></span><b id="n-ships">–</b></div>
   <div class="row"><span><i class="dot" style="background:var(--c-own)"></i>Eigene Pos.</span><b id="own-state">–</b></div>
   <div class="row"><span>Aktualisiert</span><b id="age">–</b></div>
@@ -730,6 +730,19 @@ function draw() {
   drawWaterLabels();
 
   if (base && base.layers && base.layers.place_labels) {
+    /* Wo ein Schiff beschriftet ist, bleibt der Ortsname weg. Beide an
+       derselben Stelle ergeben zwei unlesbare Texte statt einem lesbaren,
+       und das Schiff ist die Nachricht — der Ort steht ohnehin fest und
+       kommt wieder, sobald es weitergefahren ist. */
+    const belegt = [];
+    if (live) for (const s of live.ships) {
+      if (view.scale > 60000 || (selected && selected.mmsi === s.mmsi)) {
+        belegt.push([sx(mx(s.lon)), sy(my(s.lat))]);
+      }
+    }
+    const verdeckt = (X, Y) => belegt.some(([bx, by]) =>
+      Math.abs(X - bx) < 62 && Y > by - 34 && Y < by - 4);
+
     ctx.textAlign = "center";
     for (const f of base.layers.place_labels) {
       if (!f.n || !f.c[0] || !f.c[0][0]) continue;
@@ -742,6 +755,7 @@ function draw() {
       ctx.font = gross ? "700 12px system-ui, sans-serif"
                        : "600 11px system-ui, sans-serif";
       const p = f.c[0][0], X = sx(mx(p[0])), Y = sy(my(p[1]));
+      if (verdeckt(X, Y)) continue;
       ctx.lineWidth = 3; ctx.strokeStyle = C.shipLabelHalo; ctx.strokeText(text, X, Y);
       ctx.fillStyle = C.label; ctx.fillText(text, X, Y);
     }

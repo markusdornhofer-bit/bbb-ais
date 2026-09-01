@@ -5,10 +5,13 @@ speichert sie in einer lokalen SQLite-Datenbank (`data/aisdb.sqlite`).
 
 ![Die Seekarte mit empfangenem Schiffsverkehr](doc/karte.png)
 
-*Die Zufahrt nach Šibenik. Rote Pfeile sind Schiffe in Fahrt, die zweite
-Zeile nennt das Alter der Meldung und die Fahrt; der grüne Punkt ist die
-eigene Position mit dem 1-nm-Abstandsring. Links unten die zuletzt
-gehörten Schiffe, unten rechts Maßstab und Quellenangabe.*
+*Live-Verkehr vor Primošten: zwölf Schiffe, neun davon in Fahrt. Die
+Farbe nennt beides – Farbton die Fahrt, Helligkeit das Alter der Meldung.
+Die zwei orangen, vergrößerten Ziele wurden vor ein und zwei Minuten
+gehört und ziehen ihre gekoppelte Route für die nächsten sechs Minuten
+hinter sich her (gestrichelt, mit Marken bei 3 und 6 min); grün derselbe
+Pfad aus dem gemeldeten Kurs. Der grüne Punkt ist die eigene Position mit
+dem 1-nm-Abstandsring, links unten die zuletzt gehörten Schiffe.*
 
 Zum Übertragen des Projekts auf einen anderen Rechner (auch Windows/macOS)
 siehe [PORTING.md](PORTING.md), zur Ersteinrichtung [INSTALL.md](INSTALL.md).

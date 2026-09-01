@@ -182,7 +182,11 @@ Küstenlinie damit unsichtbar.
   sind unmögliche Nachrichten und damit der Indikator für die
   Empfangsqualität – er darf nicht durch bewusst verworfene Typen
   verwässert werden.
-- Geplant ist die Beobachtung bei **Šibenik, Kroatien**. Das vorhandene
+- Beobachtet wird bei **Primošten, Kroatien** (43,5906° N / 15,9185° O) –
+  der Ort liegt 0,32 nm vom Empfänger entfernt, die Stadt Šibenik dagegen
+  8,67 nm. Frühere Fassungen dieser Datei nannten irrtümlich Šibenik als
+  Standort; das Kartenblatt heißt weiterhin `sibenik_archipel`, weil es
+  tatsächlich den ganzen Šibenik-Archipel abdeckt. Das vorhandene
   Kartenmaterial deckt 15,809–15,945° O / 43,551–43,630° N ab – das ist die
   **Seezufahrt mit den Inseln**, nicht die Stadt selbst (die liegt bei
   43,735° N, also nördlich außerhalb).
@@ -217,7 +221,7 @@ Küstenlinie damit unsichtbar.
   jedem Neustart setzt systemd die Uhr auf den zuletzt gespeicherten
   Zeitpunkt; die reale Ausschaltdauer geht verloren, der Versatz wächst
   also mit jedem Boot. `journalctl --list-boots` zeigt fünf Boots, und die
-  Fahrt Steiermark → Šibenik (rund 600 km) erscheint in der Systemuhr als
+  Fahrt Steiermark → Primošten (rund 600 km) erscheint in der Systemuhr als
   wenige Minuten. Ein einheitlicher Versatz ist daher nur für die
   zusammenhängende, ortsfeste Phase in Kroatien zulässig.
 
@@ -225,7 +229,7 @@ Küstenlinie damit unsichtbar.
   wurden um +177.492 s korrigiert, die älteren Zeilen aus der Steiermark
   am 28.08.2026 **gelöscht** – ihr Versatz war nicht rekonstruierbar, und
   sie enthielten ohnehin nur Rauschen. Die Datenbank enthält seither
-  ausschließlich Daten vom 28.08.2026 aus Šibenik.
+  ausschließlich Daten vom 28.08.2026 aus Primošten.
 
   Sicherung mit dem vollständigen alten Stand (inkl. Steiermark-Zeilen und
   unkorrigierten Zeitstempeln): `data/aisdb_vor_uhrkorrektur.sqlite`.

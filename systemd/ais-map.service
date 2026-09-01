@@ -1,5 +1,5 @@
 [Unit]
-Description=Offline AIS web map (Sibenik)
+Description=Offline AIS web map (Primosten)
 After=network.target
 
 [Service]
