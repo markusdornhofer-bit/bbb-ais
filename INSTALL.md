@@ -181,6 +181,11 @@ sed -i "s|/home/debian/bbb|$HOME/bbb|g; s|^User=debian|User=$USER|" \
 > `/etc/systemd/system/`. Nach jeder Änderung erneut `cp`, dann
 > `daemon-reload`, dann `restart`.
 
+> **Rohdaten werden nicht automatisch gelöscht.** Die mitgelieferte
+> `ais-logger.service` setzt `AIS_RAW_RETENTION_DAYS=0`. Wer den Logger
+> monatelang unbeaufsichtigt laufen lässt, sollte den Wert auf eine
+> Tageszahl setzen – sonst füllt sich die Platte mit rund 45 MB pro Tag.
+
 `ais-ingest.service` und `.timer` sind **optional** und standardmäßig nicht
 installiert. Sie lesen abgeschlossene Rohdatenarchive nachträglich in die
 Datenbank ein – nur nötig, wenn der Reader zeitweise ausfiel, die

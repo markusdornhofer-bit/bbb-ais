@@ -20,6 +20,13 @@ Environment=AIS_HEARTBEAT_SECONDS=600
 Environment=AIS_GPS_LOG_SECONDS=300
 Environment=PYTHONUNBUFFERED=1
 
+# Rohdaten werden nicht automatisch geloescht. Die Vorgabe von 14 Tagen ist
+# ein Schutz gegen vollaufende Platten im Dauerbetrieb; hier wird jeweils
+# nur rund eine Woche am Stueck aufgezeichnet, und aufgezeichnetes Material
+# soll nicht hinter dem Ruecken verschwinden. Zum Einordnen: rund 45 MB pro
+# Tag, 11 GB frei -- das reicht fuer etwa acht Monate ununterbrochenen Lauf.
+Environment=AIS_RAW_RETENTION_DAYS=0
+
 # The board has no battery-backed RTC and no NTP route at the observation
 # site, so the GPS receiver is the time source (ais_logger/gps_clock.py).
 # Stepping the clock needs CAP_SYS_TIME; granting just that one capability

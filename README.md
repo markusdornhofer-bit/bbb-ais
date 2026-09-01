@@ -446,6 +446,14 @@ source_sentence`.
 | `AIS_GPS_LOG_SECONDS` | `60` | Mindestabstand der `[gps]`-Meldungen |
 | `AIS_POSITION_INTERVAL_SECONDS` | `30` | Mindestabstand gespeicherter Eigenpositionen |
 | `AIS_RAW_RETENTION_DAYS` | `14` | Rohdaten-Archive älter als … löschen; `0` = nie |
+
+In `systemd/ais-logger.service` steht `AIS_RAW_RETENTION_DAYS=0`: **auf
+diesem Gerät wird nichts automatisch gelöscht.** Die Vorgabe von 14 Tagen
+ist ein Schutz gegen vollaufende Platten im Dauerbetrieb; hier wird jeweils
+nur rund eine Woche am Stück aufgezeichnet, und aufgezeichnetes Material
+soll nicht hinter dem Rücken verschwinden. Zum Einordnen: rund 45 MB pro
+Tag bei 11 GB frei – das reicht für etwa acht Monate ununterbrochenen
+Lauf.
 | `AIS_SET_CLOCK` | `1` | Systemuhr aus der GPS-Zeit stellen; `0` schaltet ab |
 | `AIS_CLOCK_TOLERANCE_SECONDS` | `2` | ab welcher Abweichung die Uhr gestellt wird |
 
