@@ -3,6 +3,10 @@
 Liest AIS-Daten und die eigene GPS-Position vom Seanexx-USB-Stick und
 speichert sie in einer lokalen SQLite-Datenbank (`data/aisdb.sqlite`).
 
+> **Hinweis:** Die AIS-Daten wurden aufgezeichnet, um damit ein Programm zur
+> Kollisionsverhütung zu entwickeln. Die Aufzeichnung ist kein Selbstzweck,
+> sondern die Datengrundlage dafür.
+
 ![Die Seekarte mit empfangenem Schiffsverkehr](doc/karte.png)
 
 *Live-Verkehr vor Primošten: zwölf Schiffe, neun davon in Fahrt. Die
