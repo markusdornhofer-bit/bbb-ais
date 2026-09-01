@@ -389,7 +389,12 @@ const FRESH_SCALE = 1.5;
    describe current motion, and only for vessels actually under way (an
    anchored boat's segment is GPS jitter, extrapolating it would invent
    drift that is not there). */
-const PREDICT_MAX_SECONDS = 3 * 60;
+/* Wie lange nach der letzten Meldung noch gekoppelt wird. Gleich lang wie
+   FRESH_SECONDS: ein Ziel, das gross gezeichnet wird, weil es als aktuell
+   gilt, soll auch seinen Vorhersagepfad behalten — vorher verschwand der
+   nach drei Minuten, waehrend das Symbol noch weitere drei Minuten gross
+   blieb. */
+const PREDICT_MAX_SECONDS = 6 * 60;
 const PREDICT_MAX_GAP = 10 * 60;
 
 /* Marks along the reckoned path, measured from the vessel's position now.
@@ -896,7 +901,10 @@ function drawGraticule() {
   ctx.textAlign = "center";
   for (let lon = Math.ceil(lonL / step) * step; lon <= lonR; lon += step) {
     const X = sx(mx(lon));
-    if (X < 360 || X > W - 210) continue;
+    // Rechts liegt auf derselben Grundlinie die Quellenangabe; sie ist rund
+    // 170 px breit und endet bei W-72. Ohne diesen Abstand schreiben sich
+    // Gradzahl und Attribution uebereinander.
+    if (X < 360 || X > W - 360) continue;
     ctx.fillText(fmtGrad(lon, "lon"), X, H - 8);
   }
   ctx.restore();

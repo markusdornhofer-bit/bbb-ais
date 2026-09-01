@@ -58,7 +58,11 @@ console.log("\n--- Vorhersagepfade ---");
   ok("Segmentpfad", predictPosition(s, NOW) !== null);
   ok("gruener Pfad", predictReported(s, NOW) !== null);
   ok("ab Alter 0", predictReported(schiff({ts:NOW}), NOW) !== null);
-  ok("nicht aelter als 3 min", predictReported(schiff({ts:NOW-181}), NOW) === null);
+  ok("Grenze bei 6 min: 359 s noch, 361 s nicht mehr",
+     predictReported(schiff({ts:NOW-359}), NOW) !== null &&
+     predictReported(schiff({ts:NOW-361}), NOW) === null);
+  ok("Vorschau so lange wie die Vergroesserung",
+     PREDICT_MAX_SECONDS === FRESH_SECONDS, `${PREDICT_MAX_SECONDS} s`);
   ok("vor Anker keiner", predictReported(schiff({sog:0.4}), NOW) === null);
   const c = zeichne(s);
   ok("vier Marken", c.filter(x=>x.op==="arc" && (x.args[2]===2.2||x.args[2]===3.5)).length === 4);

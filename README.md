@@ -3,6 +3,13 @@
 Liest AIS-Daten und die eigene GPS-Position vom Seanexx-USB-Stick und
 speichert sie in einer lokalen SQLite-Datenbank (`data/aisdb.sqlite`).
 
+![Die Seekarte mit empfangenem Schiffsverkehr](doc/karte.png)
+
+*Die Zufahrt nach Šibenik. Rote Pfeile sind Schiffe in Fahrt, die zweite
+Zeile nennt das Alter der Meldung und die Fahrt; der grüne Punkt ist die
+eigene Position mit dem 1-nm-Abstandsring. Links unten die zuletzt
+gehörten Schiffe, unten rechts Maßstab und Quellenangabe.*
+
 Zum Übertragen des Projekts auf einen anderen Rechner (auch Windows/macOS)
 siehe [PORTING.md](PORTING.md).
 
@@ -237,8 +244,10 @@ dem gemeldeten Kurs: der ist eine Momentaufnahme, das Segment ist das, was
 das Schiff zwischen zwei Fixes tatsächlich getan hat. Drei Grenzen halten
 die Rechnung ehrlich:
 
-- höchstens **3 Minuten** nach der letzten Meldung – danach ist die
-  Fortschreibung nicht mehr zu verantworten,
+- höchstens **6 Minuten** nach der letzten Meldung – danach ist die
+  Fortschreibung nicht mehr zu verantworten. Dieselbe Spanne, für die ein
+  Ziel auch vergrößert gezeichnet wird: was als aktuell gilt, behält seinen
+  Pfad,
 - das Segment darf nicht länger als 10 Minuten zurückreichen, sonst
   beschreibt es die aktuelle Bewegung nicht mehr,
 - nur für Schiffe über 2 kn – bei einem Ankerlieger ist das Segment
