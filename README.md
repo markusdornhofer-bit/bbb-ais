@@ -11,7 +11,11 @@ eigene Position mit dem 1-nm-Abstandsring. Links unten die zuletzt
 gehörten Schiffe, unten rechts Maßstab und Quellenangabe.*
 
 Zum Übertragen des Projekts auf einen anderen Rechner (auch Windows/macOS)
-siehe [PORTING.md](PORTING.md).
+siehe [PORTING.md](PORTING.md), zur Ersteinrichtung [INSTALL.md](INSTALL.md).
+
+Der Code steht unter der [MIT-Lizenz](LICENSE). Die Kartendaten stammen aus
+OpenStreetMap und stehen unter der ODbL – die Quellenangabe steht auf der
+Karte selbst.
 
 ## Funktionsweise
 
