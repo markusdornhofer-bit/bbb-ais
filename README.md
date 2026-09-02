@@ -476,6 +476,50 @@ Nachgeprüft: 90 Sekunden aus dem dichtesten Fenster (01.09., 06:39:30 UTC)
 durch den unveränderten `run_logger` ergaben 9 von 9 Meldungen und 4 von 4
 Schiffen, ohne Verlust und ohne Zusatz gegenüber dem Original.
 
+## Nächstes fahrendes Schiff mitschreiben
+
+`tools/closest_ship.py` schreibt jede Minute eine Zeile in eine Logdatei:
+das **nächstgelegene Schiff, das tatsächlich fährt**, gemessen von der
+eigenen Position.
+
+```bash
+python3 tools/closest_ship.py                  # nach /tmp/ais_closest.log
+python3 tools/closest_ship.py --once --echo    # eine Zeile ins Terminal
+tail -f /tmp/ais_closest.log
+```
+
+```
+# closest moving vessel, every 60s: min 2 kn, within 9.9 nm, reports up to 600s old
+2026-09-02T12:42:00Z  dist 1.1nm  brg 253  sog  5.9kn  age 491s  mmsi 238533340
+2026-09-02T12:43:00Z  none within 9.9 nm
+```
+
+Drei Schwellen bestimmen, was gemeldet wird:
+
+| Schalter | Vorgabe | Bedeutung |
+|---|---|---|
+| `--min-speed` | 2 kn | darunter liegt das Schiff vor Anker oder fest und kann niemanden rammen |
+| `--limit` | 9.9 nm | weiter entfernt ist ohne Belang; hält die Spalte zugleich dreistellig |
+| `--max-age` | 600 s | ältere Meldungen sind Vergangenheit, kein Ziel |
+| `--interval` | 60 s | Abstand der Zeilen, auf die volle Minute ausgerichtet |
+| `--log` | `/tmp/ais_closest.log` | Zieldatei, wird angehängt |
+
+Die **Mindestfahrt ist der Kern**: im Test lag ein Schiff mit 0,59 nm
+deutlich näher als das gemeldete mit 1,10 nm – es hatte aber 0,0 kn und lag
+still. Ohne diese Schwelle stünde in jeder Zeile derselbe Nachbar.
+
+Das **Alter** zählt so viel wie die Entfernung. AIS ist kein Radar: ein Ziel,
+dessen letzte Meldung acht Minuten alt ist, hat sich seither bewegt – bei
+10 kn um mehr als eine Meile. Solche Meldungen werden verworfen statt als
+aktuell ausgegeben, deshalb steht das Alter in jeder Zeile.
+
+Gerechnet wird je Schiff nur mit der **neuesten** Meldung. Die kürzeste
+Entfernung über alle Meldungen hinweg würde eine andere Frage beantworten –
+wie nah etwas einmal kam, nicht wo es jetzt ist.
+
+Die Datenbank wird schreibgeschützt geöffnet; WAL ist eingeschaltet, der
+Logger schreibt also ungestört weiter.
+
 ## Daten abfragen
 
 ```python
