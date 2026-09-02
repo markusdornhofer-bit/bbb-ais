@@ -490,9 +490,32 @@ tail -f /tmp/ais_closest.log
 
 ```
 # closest moving vessel, every 10s: min 2 kn, within 9.9 nm, reports up to 180s old
-2026-09-02T12:59:10Z  dist 1.7nm  brg 291  sog  5.3kn  age  15s  mmsi 211871470
-2026-09-02T12:59:20Z  none within 9.9 nm
+2026-09-02T13:06:30Z  dist 1.2nm  rep 1.3nm  brg 229  cog 077  sog  4.7kn  age  40s  mmsi 211871470  SEMPER IUVENIS
+2026-09-02T13:06:40Z  dist 1.2nm  rep 1.2nm  brg 229  cog 076  sog  5.2kn  age   6s  mmsi 211871470  SEMPER IUVENIS
+2026-09-02T13:06:49Z  none within 9.9 nm
 ```
+
+`dist` ist die **weitergerechnete** Entfernung, `rep` die zum Zeitpunkt der
+Meldung. Die gemeldete Position wird mit dem gemeldeten Kurs und der
+gemeldeten Fahrt bis jetzt fortgeschrieben, und die Auswahl richtet sich
+nach dem weitergerechneten Wert. Ohne das beantwortet der Mitschnitt, wo ein
+Schiff vor bis zu drei Minuten war – bei 10 kn eine halbe Meile daneben,
+während es gerade darum geht, was jetzt aufkommt. Bei ganz frischen
+Meldungen sind beide Werte gleich, es gibt dann nichts weiterzurechnen.
+
+Dass beide Zahlen dastehen, ist Absicht: die Extrapolation lässt sich so
+gegen die Messung prüfen, statt eine gerechnete Zahl als Messwert
+auszugeben.
+
+Nachgerechnet an einem konstruierten Fall: ein Schiff 2,0 nm nördlich, 12 kn
+nach Süden, Meldung 120 s alt – 12 kn × 120 s sind 0,4 nm, also 1,6 nm. Genau
+das kommt heraus, und es **gewinnt gegen ein Schiff, das mit 1,8 nm näher
+gemeldet wurde**, sich aber entfernt. Ohne Weiterrechnen hätte der Mitschnitt
+das falsche Schiff genannt.
+
+`cog ---` heißt: das Schiff meldet keinen Kurs (AIS-Wert 360), dann bleibt
+`dist` gleich `rep`. Unter den fahrenden Schiffen ist das selten – zwei von
+3434 Meldungen.
 
 Drei Schwellen bestimmen, was gemeldet wird:
 

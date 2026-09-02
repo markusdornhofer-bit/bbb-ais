@@ -56,6 +56,12 @@ HOECHSTALTER = 180
 # closing target within one step of the report arriving, not up to a
 # minute later.
 INTERVALL = 10.0
+# AIS reports "course not available" as 360. Unlike the speed sentinel this
+# one is stored raw, so it has to be caught here: 1699 of 7141 position
+# reports carry it. Among vessels actually making way it is rare -- two out
+# of 3434 -- so dead reckoning is available for practically every target
+# that matters.
+_COG_UNAVAILABLE = 360.0
 LOGDATEI = "/tmp/ais_closest.log"
 
 _laeuft = True
@@ -73,6 +79,20 @@ def peilung(la1, lo1, la2, lo2):
     return math.degrees(math.atan2(ost, nord)) % 360
 
 
+def koppeln(la, lo, cog, sog, sekunden):
+    """Carry a reported position forward along its course.
+
+    A report is always in the past, and the vessel has not waited there.
+    Over the seconds involved here a straight line on a flat earth is far
+    more accuracy than the input deserves -- the reported course is a
+    tenth of a degree at best, and a turn between reports is invisible
+    either way.
+    """
+    weg = sog * sekunden / 3600.0
+    return (la + weg * math.cos(math.radians(cog)) / 60.0,
+            lo + weg * math.sin(math.radians(cog)) / (60.0 * math.cos(math.radians(la))))
+
+
 def eigene_position(conn):
     zeile = conn.execute(
         "SELECT ts_unix, lat, lon FROM own_position "
@@ -87,6 +107,13 @@ def naechstes_schiff(conn, jetzt, mindestfahrt, hoechstalter, grenze):
     position the vessel has already left, and taking the closest over all
     reports would answer a question nobody asked -- how near something once
     came, not where it is.
+
+    That position is then carried forward to now along the reported course,
+    and the ranking uses the carried-forward distance. Without it the log
+    answers where a vessel was up to three minutes ago; at 10 kn that is
+    half a mile of error, and the whole point is what is closing now. The
+    reported distance stays in the line so the extrapolation can be checked
+    against it.
     """
     eigen = eigene_position(conn)
     if eigen is None:
@@ -94,22 +121,31 @@ def naechstes_schiff(conn, jetzt, mindestfahrt, hoechstalter, grenze):
     _, eigen_la, eigen_lo = eigen
 
     letzte = {}
-    for mmsi, ts, la, lo, sog in conn.execute(
-            "SELECT mmsi, ts_unix, lat, lon, sog_knots FROM ais_messages "
+    for mmsi, ts, la, lo, sog, cog in conn.execute(
+            "SELECT mmsi, ts_unix, lat, lon, sog_knots, cog_deg FROM ais_messages "
             "WHERE lat IS NOT NULL AND lon IS NOT NULL AND ts_unix >= ? "
             "ORDER BY ts_unix", (jetzt - hoechstalter,)):
-        letzte[mmsi] = (ts, la, lo, sog)
+        letzte[mmsi] = (ts, la, lo, sog, cog)
 
     bestes = None
-    for mmsi, (ts, la, lo, sog) in letzte.items():
+    for mmsi, (ts, la, lo, sog, cog) in letzte.items():
         if sog is None or sog >= _SOG_UNAVAILABLE or sog < mindestfahrt:
             continue
-        weit = _nm(eigen_la, eigen_lo, la, lo)
+        alter = jetzt - ts
+        gemeldet = _nm(eigen_la, eigen_lo, la, lo)
+        if cog is None or cog >= _COG_UNAVAILABLE:
+            # No course, so nothing to carry the position along. Better to
+            # say so in the line than to invent a direction.
+            kla, klo, kurs = la, lo, None
+        else:
+            kla, klo = koppeln(la, lo, cog, sog, alter)
+            kurs = cog % 360
+        weit = _nm(eigen_la, eigen_lo, kla, klo)
         if weit > grenze:
             continue
         if bestes is None or weit < bestes[0]:
-            bestes = (weit, peilung(eigen_la, eigen_lo, la, lo),
-                      sog, jetzt - ts, mmsi)
+            bestes = (weit, gemeldet, peilung(eigen_la, eigen_lo, kla, klo),
+                      kurs, sog, alter, mmsi)
 
     if bestes is None:
         return None, f"none within {grenze:.1f} nm"
@@ -126,9 +162,13 @@ def zeile_bauen(jetzt, bestes, grund, benennung):
     stempel = datetime.fromtimestamp(jetzt, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     if bestes is None:
         return f"{stempel}  {grund}"
-    weit, brg, sog, alter, mmsi = bestes
+    weit, gemeldet, brg, kurs, sog, alter, mmsi = bestes
     name = benennung.get(mmsi, "")
-    return (f"{stempel}  dist {weit:3.1f}nm  brg {brg:03.0f}  sog {sog:4.1f}kn  "
+    # "cog ---" means the vessel reported no course, so dist could not be
+    # carried forward and equals rep.
+    cog = f"{kurs:03.0f}" if kurs is not None else "---"
+    return (f"{stempel}  dist {weit:3.1f}nm  rep {gemeldet:3.1f}nm  "
+            f"brg {brg:03.0f}  cog {cog}  sog {sog:4.1f}kn  "
             f"age {alter:3.0f}s  mmsi {mmsi}" + (f"  {name}" if name else ""))
 
 
