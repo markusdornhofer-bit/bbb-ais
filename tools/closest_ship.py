@@ -1,5 +1,5 @@
-"""Write one line a minute to a log file: the closest vessel that is
-actually moving, measured from our own position.
+"""Write one line every ten seconds to a log file: the closest vessel
+that is actually moving, measured from our own position.
 
 This is the proximity watch the recording is for -- a moored boat wants to
 know what is approaching under way, not how many targets are in the
@@ -51,6 +51,11 @@ GRENZE_NM = 9.9
 # minutes: a vessel at 10 kn covers half a mile in that time, which is
 # already more error than the reported distance is worth.
 HOECHSTALTER = 180
+# Ten seconds is well below the rate at which anything in the picture
+# changes -- a vessel at 10 kn moves 30 m -- but it means the log shows a
+# closing target within one step of the report arriving, not up to a
+# minute later.
+INTERVALL = 10.0
 LOGDATEI = "/tmp/ais_closest.log"
 
 _laeuft = True
@@ -129,11 +134,11 @@ def zeile_bauen(jetzt, bestes, grund, benennung):
 
 def main():
     zerleger = argparse.ArgumentParser(
-        description="Log the closest moving vessel once a minute.")
+        description="Log the closest moving vessel every few seconds.")
     zerleger.add_argument("--log", default=LOGDATEI,
                           help=f"log file to append to (default {LOGDATEI})")
-    zerleger.add_argument("--interval", type=float, default=60.0,
-                          help="seconds between lines (default 60)")
+    zerleger.add_argument("--interval", type=float, default=INTERVALL,
+                          help=f"seconds between lines (default {INTERVALL:g})")
     zerleger.add_argument("--limit", type=float, default=GRENZE_NM,
                           help=f"report nothing farther than this, in nautical "
                                f"miles (default {GRENZE_NM})")
@@ -188,7 +193,7 @@ def main():
 
         if argumente.once:
             break
-        # Align to the interval so the timestamps stay on round minutes
+        # Align to the interval so the timestamps stay on round steps
         # however long the query took.
         rest = argumente.interval - (time.time() % argumente.interval)
         ende = time.monotonic() + rest

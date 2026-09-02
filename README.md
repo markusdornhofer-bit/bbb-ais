@@ -478,7 +478,7 @@ Schiffen, ohne Verlust und ohne Zusatz gegenüber dem Original.
 
 ## Nächstes fahrendes Schiff mitschreiben
 
-`tools/closest_ship.py` schreibt jede Minute eine Zeile in eine Logdatei:
+`tools/closest_ship.py` schreibt alle zehn Sekunden eine Zeile in eine Logdatei:
 das **nächstgelegene Schiff, das tatsächlich fährt**, gemessen von der
 eigenen Position.
 
@@ -489,9 +489,9 @@ tail -f /tmp/ais_closest.log
 ```
 
 ```
-# closest moving vessel, every 60s: min 2 kn, within 9.9 nm, reports up to 180s old
-2026-09-02T12:42:00Z  dist 1.1nm  brg 253  sog  5.9kn  age 118s  mmsi 238533340
-2026-09-02T12:43:00Z  none within 9.9 nm
+# closest moving vessel, every 10s: min 2 kn, within 9.9 nm, reports up to 180s old
+2026-09-02T12:59:10Z  dist 1.7nm  brg 291  sog  5.3kn  age  15s  mmsi 211871470
+2026-09-02T12:59:20Z  none within 9.9 nm
 ```
 
 Drei Schwellen bestimmen, was gemeldet wird:
@@ -501,7 +501,7 @@ Drei Schwellen bestimmen, was gemeldet wird:
 | `--min-speed` | 2 kn | darunter liegt das Schiff vor Anker oder fest und kann niemanden rammen |
 | `--limit` | 9.9 nm | weiter entfernt ist ohne Belang; hält die Spalte zugleich dreistellig |
 | `--max-age` | 180 s | ältere Meldungen sind Vergangenheit, kein Ziel |
-| `--interval` | 60 s | Abstand der Zeilen, auf die volle Minute ausgerichtet |
+| `--interval` | 10 s | Abstand der Zeilen, auf runde Schritte ausgerichtet |
 | `--log` | `/tmp/ais_closest.log` | Zieldatei, wird angehängt |
 
 Die **Mindestfahrt ist der Kern**: im Test lag ein Schiff mit 0,59 nm
