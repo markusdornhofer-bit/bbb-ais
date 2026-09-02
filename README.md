@@ -489,8 +489,8 @@ tail -f /tmp/ais_closest.log
 ```
 
 ```
-# closest moving vessel, every 60s: min 2 kn, within 9.9 nm, reports up to 600s old
-2026-09-02T12:42:00Z  dist 1.1nm  brg 253  sog  5.9kn  age 491s  mmsi 238533340
+# closest moving vessel, every 60s: min 2 kn, within 9.9 nm, reports up to 180s old
+2026-09-02T12:42:00Z  dist 1.1nm  brg 253  sog  5.9kn  age 118s  mmsi 238533340
 2026-09-02T12:43:00Z  none within 9.9 nm
 ```
 
@@ -500,7 +500,7 @@ Drei Schwellen bestimmen, was gemeldet wird:
 |---|---|---|
 | `--min-speed` | 2 kn | darunter liegt das Schiff vor Anker oder fest und kann niemanden rammen |
 | `--limit` | 9.9 nm | weiter entfernt ist ohne Belang; hält die Spalte zugleich dreistellig |
-| `--max-age` | 600 s | ältere Meldungen sind Vergangenheit, kein Ziel |
+| `--max-age` | 180 s | ältere Meldungen sind Vergangenheit, kein Ziel |
 | `--interval` | 60 s | Abstand der Zeilen, auf die volle Minute ausgerichtet |
 | `--log` | `/tmp/ais_closest.log` | Zieldatei, wird angehängt |
 
@@ -509,9 +509,12 @@ deutlich näher als das gemeldete mit 1,10 nm – es hatte aber 0,0 kn und lag
 still. Ohne diese Schwelle stünde in jeder Zeile derselbe Nachbar.
 
 Das **Alter** zählt so viel wie die Entfernung. AIS ist kein Radar: ein Ziel,
-dessen letzte Meldung acht Minuten alt ist, hat sich seither bewegt – bei
-10 kn um mehr als eine Meile. Solche Meldungen werden verworfen statt als
-aktuell ausgegeben, deshalb steht das Alter in jeder Zeile.
+dessen letzte Meldung drei Minuten alt ist, hat bei 10 kn schon eine halbe
+Meile zurückgelegt – mehr Fehler, als die gemeldete Entfernung wert ist.
+Ältere Meldungen werden deshalb verworfen, bevor überhaupt gerechnet wird;
+ein `age` über 180 kann in der Datei nicht vorkommen. Eine stille Zeile
+heißt entsprechend: nichts ist zugleich nah, in Fahrt und aktuell – nicht,
+dass die See leer wäre.
 
 Gerechnet wird je Schiff nur mit der **neuesten** Meldung. Die kürzeste
 Entfernung über alle Meldungen hinweg würde eine andere Frage beantworten –

@@ -18,10 +18,14 @@ old its last report is, and who it is:
         mmsi 238537940  KORNAT
     2026-09-02T14:32:00Z  none within 9.9 nm
 
+An "age" above 180 cannot appear: such a report is dropped before the
+distance is even computed.
+
 The age matters as much as the distance. AIS is not radar: a target that
-last reported eight minutes ago has moved since, and at 10 kn it has moved
-more than a mile. Reports older than --max-age are ignored entirely rather
-than presented as current.
+last reported three minutes ago has already moved half a mile at 10 kn.
+Reports older than --max-age are ignored entirely rather than presented as
+current, so a quiet line means nothing is both near, moving and recent --
+not that the sea is empty.
 """
 import argparse
 import math
@@ -43,8 +47,10 @@ MIN_FAHRT = 2.0
 # Beyond this the answer is "nothing worth reporting". Also keeps the
 # printed distance to three characters, so the column never jumps.
 GRENZE_NM = 9.9
-# A position report older than this is history, not a target.
-HOECHSTALTER = 600
+# A position report older than this is history, not a target. Three
+# minutes: a vessel at 10 kn covers half a mile in that time, which is
+# already more error than the reported distance is worth.
+HOECHSTALTER = 180
 LOGDATEI = "/tmp/ais_closest.log"
 
 _laeuft = True
