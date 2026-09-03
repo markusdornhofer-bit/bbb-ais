@@ -24,7 +24,7 @@ Environment=PYTHONUNBUFFERED=1
 #   --max-age    reports older than this are history, not a target
 ExecStart=/home/debian/bbb/.venv/bin/python tools/closest_ship.py \
     --log /tmp/ais_closest.log \
-    --interval 10 --min-speed 2 --limit 9.9 --max-age 180
+    --interval 10 --min-speed 2 --limit 9.9 --max-age 360
 
 Restart=always
 RestartSec=10

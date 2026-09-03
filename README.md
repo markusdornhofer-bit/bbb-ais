@@ -507,7 +507,7 @@ tail -f /tmp/ais_closest.log
 ```
 
 ```
-# closest moving vessel, every 10s: min 2 kn, within 9.9 nm, reports up to 180s old
+# closest moving vessel, every 10s: min 2 kn, within 9.9 nm, reports up to 360s old
 2026-09-02T13:06:30Z  dist 1.2nm  rep 1.3nm  brg 229  cog 077  sog  4.7kn  age  40s  mmsi 211871470  SEMPER IUVENIS
 2026-09-02T13:06:40Z  dist 1.2nm  rep 1.2nm  brg 229  cog 076  sog  5.2kn  age   6s  mmsi 211871470  SEMPER IUVENIS
 2026-09-02T13:06:49Z  none within 9.9 nm
@@ -517,7 +517,7 @@ tail -f /tmp/ais_closest.log
 Meldung. Die gemeldete Position wird mit dem gemeldeten Kurs und der
 gemeldeten Fahrt bis jetzt fortgeschrieben, und die Auswahl richtet sich
 nach dem weitergerechneten Wert. Ohne das beantwortet der Mitschnitt, wo ein
-Schiff vor bis zu drei Minuten war – bei 10 kn eine halbe Meile daneben,
+Schiff vor bis zu sechs Minuten war – bei 10 kn eine ganze Meile daneben,
 während es gerade darum geht, was jetzt aufkommt. Bei ganz frischen
 Meldungen sind beide Werte gleich, es gibt dann nichts weiterzurechnen.
 
@@ -541,7 +541,7 @@ Drei Schwellen bestimmen, was gemeldet wird:
 |---|---|---|
 | `--min-speed` | 2 kn | darunter liegt das Schiff vor Anker oder fest und kann niemanden rammen |
 | `--limit` | 9.9 nm | weiter entfernt ist ohne Belang; hält die Spalte zugleich dreistellig |
-| `--max-age` | 180 s | ältere Meldungen sind Vergangenheit, kein Ziel |
+| `--max-age` | 360 s | ältere Meldungen sind Vergangenheit, kein Ziel |
 | `--interval` | 10 s | Abstand der Zeilen, auf runde Schritte ausgerichtet |
 | `--log` | `/tmp/ais_closest.log` | Zieldatei, wird angehängt |
 
@@ -550,12 +550,14 @@ deutlich näher als das gemeldete mit 1,10 nm – es hatte aber 0,0 kn und lag
 still. Ohne diese Schwelle stünde in jeder Zeile derselbe Nachbar.
 
 Das **Alter** zählt so viel wie die Entfernung. AIS ist kein Radar: ein Ziel,
-dessen letzte Meldung drei Minuten alt ist, hat bei 10 kn schon eine halbe
-Meile zurückgelegt – mehr Fehler, als die gemeldete Entfernung wert ist.
-Ältere Meldungen werden deshalb verworfen, bevor überhaupt gerechnet wird;
-ein `age` über 180 kann in der Datei nicht vorkommen. Eine stille Zeile
-heißt entsprechend: nichts ist zugleich nah, in Fahrt und aktuell – nicht,
-dass die See leer wäre.
+dessen letzte Meldung sechs Minuten alt ist, hat bei 10 kn eine ganze Meile
+zurückgelegt. Dass ein so weites Fenster überhaupt brauchbar ist, liegt
+allein am Weiterrechnen – ein sechs Minuten lang gehaltener Kurs ist aber
+eine Annahme und keine Beobachtung, deshalb stehen beide Entfernungen in
+der Zeile. Ältere Meldungen werden verworfen, bevor gerechnet wird; ein
+`age` über 360 kann in der Datei nicht vorkommen. Eine stille Zeile heißt
+entsprechend: nichts ist zugleich nah, in Fahrt und aktuell – nicht, dass
+die See leer wäre.
 
 Gerechnet wird je Schiff nur mit der **neuesten** Meldung. Die kürzeste
 Entfernung über alle Meldungen hinweg würde eine andere Frage beantworten –

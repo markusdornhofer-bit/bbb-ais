@@ -18,14 +18,17 @@ old its last report is, and who it is:
         mmsi 238537940  KORNAT
     2026-09-02T14:32:00Z  none within 9.9 nm
 
-An "age" above 180 cannot appear: such a report is dropped before the
+An "age" above 360 cannot appear: such a report is dropped before the
 distance is even computed.
 
 The age matters as much as the distance. AIS is not radar: a target that
-last reported three minutes ago has already moved half a mile at 10 kn.
+last reported six minutes ago has run a mile at 10 kn. Its position is
+carried forward along the reported course, which is what makes a window
+this wide usable at all -- but a course held for six minutes is an
+assumption, not an observation, so both distances stay in the line.
 Reports older than --max-age are ignored entirely rather than presented as
-current, so a quiet line means nothing is both near, moving and recent --
-not that the sea is empty.
+current: a quiet line means nothing is both near, moving and recent -- not
+that the sea is empty.
 """
 import argparse
 import math
@@ -47,10 +50,12 @@ MIN_FAHRT = 2.0
 # Beyond this the answer is "nothing worth reporting". Also keeps the
 # printed distance to three characters, so the column never jumps.
 GRENZE_NM = 9.9
-# A position report older than this is history, not a target. Three
-# minutes: a vessel at 10 kn covers half a mile in that time, which is
-# already more error than the reported distance is worth.
-HOECHSTALTER = 180
+# A position report older than this is history, not a target. Six minutes
+# is wide -- a vessel at 10 kn runs a mile -- and only defensible because
+# the position is carried forward along its course. It matches the six
+# minutes the map draws its reckoned track over, so both views of a target
+# reach equally far ahead.
+HOECHSTALTER = 360
 # Ten seconds is well below the rate at which anything in the picture
 # changes -- a vessel at 10 kn moves 30 m -- but it means the log shows a
 # closing target within one step of the report arriving, not up to a
@@ -110,8 +115,8 @@ def naechstes_schiff(conn, jetzt, mindestfahrt, hoechstalter, grenze):
 
     That position is then carried forward to now along the reported course,
     and the ranking uses the carried-forward distance. Without it the log
-    answers where a vessel was up to three minutes ago; at 10 kn that is
-    half a mile of error, and the whole point is what is closing now. The
+    answers where a vessel was up to six minutes ago; at 10 kn that is a
+    mile of error, and the whole point is what is closing now. The
     reported distance stays in the line so the extrapolation can be checked
     against it.
     """
