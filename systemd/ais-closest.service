@@ -1,0 +1,33 @@
+[Unit]
+Description=Closest moving vessel watch (Primosten)
+Documentation=file:/home/debian/bbb/README.md
+# Reads what the logger writes; starting after it avoids a first round of
+# "no own position recorded" on a cold boot. Wants= rather than Requires=:
+# a stopped logger is a reason to log nothing, not a reason to give up.
+After=ais-logger.service
+Wants=ais-logger.service
+# Restart forever. Without this systemd gives up after five starts in ten
+# seconds and the watch stays dead exactly when something is wrong.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=debian
+WorkingDirectory=/home/debian/bbb
+Environment=PYTHONUNBUFFERED=1
+
+# The defaults are in tools/closest_ship.py; overriding them here keeps the
+# operating values visible in one place:
+#   --interval   seconds between lines
+#   --min-speed  below this a vessel is moored and cannot close on anyone
+#   --limit      nautical miles; farther away is reported as "none"
+#   --max-age    reports older than this are history, not a target
+ExecStart=/home/debian/bbb/.venv/bin/python tools/closest_ship.py \
+    --log /tmp/ais_closest.log \
+    --interval 10 --min-speed 2 --limit 9.9 --max-age 180
+
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

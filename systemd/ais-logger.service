@@ -2,6 +2,10 @@
 Description=AIS/GPS serial logger (Seanexx USB stick)
 Documentation=file:/home/debian/bbb/README.md
 After=multi-user.target
+# Belongs in [Unit]: in [Service] systemd ignores it, the default
+# limit of five starts in ten seconds applies, and the service stays
+# dead exactly when something is repeatedly going wrong.
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -40,7 +44,6 @@ ExecStart=/home/debian/bbb/.venv/bin/python -m ais_logger.run_logger
 # Survive unplugged sticks, reboots and crashes indefinitely.
 Restart=always
 RestartSec=10
-StartLimitIntervalSec=0
 
 [Install]
 WantedBy=multi-user.target

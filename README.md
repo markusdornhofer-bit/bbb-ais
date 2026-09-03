@@ -100,15 +100,33 @@ export AIS_BAUD=38400
 ## Dauerbetrieb per systemd
 
 ```bash
-sudo cp systemd/ais-logger.service systemd/ais-ingest.service systemd/ais-ingest.timer /etc/systemd/system/
+sudo cp systemd/ais-logger.service systemd/ais-ingest.service systemd/ais-ingest.timer \
+        systemd/ais-map.service systemd/ais-closest.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now ais-logger.service
-sudo systemctl enable --now ais-ingest.timer   # optional, siehe oben
+sudo systemctl enable --now ais-map.service      # Web-Karte
+sudo systemctl enable --now ais-closest.service  # Mitschnitt, siehe unten
+sudo systemctl enable --now ais-ingest.timer     # optional, siehe oben
 ```
 
 Pfade/User in den `.service`-Dateien (`WorkingDirectory`, `ExecStart`,
 `User`) ggf. an den tatsächlichen Installationsort und Benutzernamen
 anpassen. Logs: `journalctl -u ais-logger.service -f`.
+
+**Alles, was durchlaufen soll, gehört als Dienst hierher.** Ein von Hand
+mit `nohup` gestartetes Programm überlebt keinen Neustart – und das Board
+hat weder eine Pufferbatterie noch eine geregelte Stromversorgung. Am
+02.09.2026 fiel es um 17:35 unvermittelt aus (das Journal meldet
+„corrupted or uncleanly shut down") und startete am nächsten Morgen um
+07:34 erneut. Logger und Karte kamen beide Male von selbst zurück, der
+von Hand gestartete Mitschnitt nicht: seine Logdatei stand danach vierzehn
+Stunden still, ohne dass ein `tail -f` daran etwas gemerkt hätte.
+
+`StartLimitIntervalSec=0` steht in allen Units im Abschnitt `[Unit]`. In
+`[Service]` ignoriert systemd den Schlüssel – mit einer Warnung im Journal,
+die leicht zu übersehen ist –, womit die Vorgabe von fünf Starts in zehn
+Sekunden gilt. Der Dienst gibt dann genau dann endgültig auf, wenn
+wiederholt etwas schiefgeht, also im ungünstigsten Moment.
 
 ## Karte
 
