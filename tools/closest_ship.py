@@ -14,9 +14,13 @@ limit is too far to matter and is reported as "none".
 Each line names the distance, the bearing from us, the vessel's speed, how
 old its last report is, and who it is:
 
-    2026-09-02T14:31:00Z  dist 2.4nm  brg 118  sog 7.3kn  age 22s  \\
-        mmsi 238537940  KORNAT
-    2026-09-02T14:32:00Z  none within 9.9 nm
+    2026-09-03T08:11:20Z  dist   1.8nm  rep   1.6nm  brg 232  cog 172  \\
+        sog 14.0kn  age  73s  mmsi 249398000  PAPA
+    2026-09-03T08:11:30Z  none moving
+
+There is no range limit: whatever is nearest is what the line names,
+however far off. "none moving" therefore means nothing was heard under
+way at all, not that the neighbourhood is quiet.
 
 An "age" above 360 cannot appear: such a report is dropped before the
 distance is even computed.
@@ -42,14 +46,22 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from ais_logger import config  # noqa: E402
-from webmap.server import _nm, _SOG_UNAVAILABLE  # noqa: E402
+from webmap.server import _nm, _SOG_UNAVAILABLE, _MAX_PLAUSIBLE_NM  # noqa: E402
 
 # A vessel under this is anchored, moored or drifting; it is not closing on
 # anyone and would otherwise fill every line with the same neighbour.
 MIN_FAHRT = 2.0
-# Beyond this the answer is "nothing worth reporting". Also keeps the
-# printed distance to three characters, so the column never jumps.
-GRENZE_NM = 9.9
+# No operating range limit: whatever is nearest is what the line names,
+# however far off it is. A minimum can only be dragged upwards by a distant
+# target, never spoiled by one, so a cap buys nothing here -- it only hides
+# the answer when the sea happens to be empty nearby.
+#
+# What is still refused is the implausible. AIS is line-of-sight VHF and
+# reaches twenty to forty miles, a hundred under exceptional atmospherics;
+# past that a position is a decoding artefact rather than a vessel, and one
+# with a plausible speed attached would otherwise be reported as a target.
+# _MAX_PLAUSIBLE_NM carries that reasoning in webmap/server.py.
+GRENZE_NM = None
 # A position report older than this is history, not a target. Six minutes
 # is wide -- a vessel at 10 kn runs a mile -- and only defensible because
 # the position is carried forward along its course. It matches the six
@@ -146,14 +158,17 @@ def naechstes_schiff(conn, jetzt, mindestfahrt, hoechstalter, grenze):
             kla, klo = koppeln(la, lo, cog, sog, alter)
             kurs = cog % 360
         weit = _nm(eigen_la, eigen_lo, kla, klo)
-        if weit > grenze:
+        if weit > _MAX_PLAUSIBLE_NM:
+            continue
+        if grenze is not None and weit > grenze:
             continue
         if bestes is None or weit < bestes[0]:
             bestes = (weit, gemeldet, peilung(eigen_la, eigen_lo, kla, klo),
                       kurs, sog, alter, mmsi)
 
     if bestes is None:
-        return None, f"none within {grenze:.1f} nm"
+        return None, ("none moving" if grenze is None
+                      else f"none within {grenze:.1f} nm")
     return bestes, None
 
 
@@ -172,7 +187,9 @@ def zeile_bauen(jetzt, bestes, grund, benennung):
     # "cog ---" means the vessel reported no course, so dist could not be
     # carried forward and equals rep.
     cog = f"{kurs:03.0f}" if kurs is not None else "---"
-    return (f"{stempel}  dist {weit:3.1f}nm  rep {gemeldet:3.1f}nm  "
+    # Widened from three characters now that there is no range limit: a
+    # target twelve miles out must not shift the columns.
+    return (f"{stempel}  dist {weit:5.1f}nm  rep {gemeldet:5.1f}nm  "
             f"brg {brg:03.0f}  cog {cog}  sog {sog:4.1f}kn  "
             f"age {alter:3.0f}s  mmsi {mmsi}" + (f"  {name}" if name else ""))
 
@@ -185,8 +202,10 @@ def main():
     zerleger.add_argument("--interval", type=float, default=INTERVALL,
                           help=f"seconds between lines (default {INTERVALL:g})")
     zerleger.add_argument("--limit", type=float, default=GRENZE_NM,
-                          help=f"report nothing farther than this, in nautical "
-                               f"miles (default {GRENZE_NM})")
+                          help="report nothing farther than this, in nautical "
+                               "miles (default: no limit; implausible "
+                               f"positions beyond {_MAX_PLAUSIBLE_NM:g} nm are "
+                               "dropped either way)")
     zerleger.add_argument("--min-speed", type=float, default=MIN_FAHRT,
                           help=f"ignore vessels slower than this (default {MIN_FAHRT})")
     zerleger.add_argument("--max-age", type=float, default=HOECHSTALTER,
@@ -210,8 +229,10 @@ def main():
     signal.signal(signal.SIGTERM, _stopp)
 
     log = open(argumente.log, "a", encoding="utf-8")
+    reichweite = ("no range limit" if argumente.limit is None
+                  else f"within {argumente.limit:g} nm")
     kopf = (f"# closest moving vessel, every {argumente.interval:g}s: "
-            f"min {argumente.min_speed:g} kn, within {argumente.limit:g} nm, "
+            f"min {argumente.min_speed:g} kn, {reichweite}, "
             f"reports up to {argumente.max_age:g}s old")
     print(kopf, file=log, flush=True)
     if argumente.echo:

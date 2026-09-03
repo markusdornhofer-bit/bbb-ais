@@ -507,10 +507,10 @@ tail -f /tmp/ais_closest.log
 ```
 
 ```
-# closest moving vessel, every 10s: min 2 kn, within 9.9 nm, reports up to 360s old
-2026-09-02T13:06:30Z  dist 1.2nm  rep 1.3nm  brg 229  cog 077  sog  4.7kn  age  40s  mmsi 211871470  SEMPER IUVENIS
-2026-09-02T13:06:40Z  dist 1.2nm  rep 1.2nm  brg 229  cog 076  sog  5.2kn  age   6s  mmsi 211871470  SEMPER IUVENIS
-2026-09-02T13:06:49Z  none within 9.9 nm
+# closest moving vessel, every 10s: min 2 kn, no range limit, reports up to 360s old
+2026-09-03T08:11:10Z  dist   1.7nm  rep   1.6nm  brg 233  cog 172  sog 14.0kn  age  63s  mmsi 249398000  PAPA
+2026-09-03T08:11:20Z  dist   1.8nm  rep   1.6nm  brg 232  cog 172  sog 14.0kn  age  73s  mmsi 249398000  PAPA
+2026-09-03T08:11:30Z  none moving
 ```
 
 `dist` ist die **weitergerechnete** Entfernung, `rep` die zum Zeitpunkt der
@@ -540,10 +540,23 @@ Drei Schwellen bestimmen, was gemeldet wird:
 | Schalter | Vorgabe | Bedeutung |
 |---|---|---|
 | `--min-speed` | 2 kn | darunter liegt das Schiff vor Anker oder fest und kann niemanden rammen |
-| `--limit` | 9.9 nm | weiter entfernt ist ohne Belang; hält die Spalte zugleich dreistellig |
+| `--limit` | keine | ohne Grenze; gesetzt meldet er nichts jenseits davon |
 | `--max-age` | 360 s | ältere Meldungen sind Vergangenheit, kein Ziel |
 | `--interval` | 10 s | Abstand der Zeilen, auf runde Schritte ausgerichtet |
 | `--log` | `/tmp/ais_closest.log` | Zieldatei, wird angehängt |
+
+**Es gibt keine Entfernungsgrenze.** Gemeldet wird, was am nächsten ist,
+wie weit es auch weg sein mag – ein Mindestwert lässt sich durch ein fernes
+Ziel nur nach oben ziehen, nie verfälschen, eine Obergrenze verschweigt
+also bloß die Antwort, wenn ringsum gerade nichts fährt. `none moving`
+heißt entsprechend: es war überhaupt nichts in Fahrt zu hören.
+
+Verworfen wird trotzdem das **Unmögliche**. AIS ist Sichtfunk auf UKW und
+reicht zwanzig bis vierzig Meilen, unter besonderen atmosphärischen
+Bedingungen hundert; darüber hinaus ist eine Position ein Decodierfehler
+und kein Schiff. Die Schwelle dafür (`_MAX_PLAUSIBLE_NM`, 100 nm) steht
+schon in `webmap/server.py` und wird von hier mitbenutzt. Nachgeprüft: ein
+Ziel in 25 nm wird gemeldet, eines in 150 nm nicht.
 
 Die **Mindestfahrt ist der Kern**: im Test lag ein Schiff mit 0,59 nm
 deutlich näher als das gemeldete mit 1,10 nm – es hatte aber 0,0 kn und lag
